@@ -31,6 +31,7 @@
 
 package org.opensearch.gradle.testclusters;
 
+import groovy.lang.Closure;
 import org.opensearch.gradle.FileSystemOperationsAware;
 import org.opensearch.gradle.test.Fixture;
 import org.opensearch.gradle.util.GradleUtils;
@@ -60,6 +61,7 @@ import java.util.List;
 public class StandaloneRestIntegTestTask extends Test implements TestClustersAware, FileSystemOperationsAware {
 
     private Collection<OpenSearchCluster> clusters = new HashSet<>();
+    private Closure<Void> beforeStart;
 
     public StandaloneRestIntegTestTask() {
         this.getOutputs()
@@ -86,6 +88,18 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
             );
     }
 
+
+    // Hook for executing any logic before starting the task.
+    public void setBeforeStart(Closure<Void> closure) {
+        beforeStart = closure;
+    }
+
+    @Override
+    public void beforeStart() {
+        if (beforeStart != null) {
+            beforeStart.call(this);
+        }
+    }
     @Override
     public int getMaxParallelForks() {
         return 1;
