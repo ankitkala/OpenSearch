@@ -10,7 +10,10 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.replication.crosscluster.follower.SyncLeaderSegmentsAction;
+import org.opensearch.action.support.replication.crosscluster.follower.SyncLeaderSegmentsResponse;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -24,9 +27,12 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
+import org.opensearch.indices.replication.checkpoint.crosscluster.GetSegmentChunkRequest;
+import org.opensearch.indices.replication.checkpoint.crosscluster.GetSegmentChunkResponse;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportActionProxy;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
@@ -52,6 +58,39 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
      *
      * @opensearch.internal
      */
+    public static class GetCheckpointInfoAction extends ActionType<CheckpointInfoResponse> {
+
+        public static final GetCheckpointInfoAction INSTANCE = new GetCheckpointInfoAction();
+        public static final String NAME = "internal:index/shard/replication/get_checkpoint_info";
+
+        private GetCheckpointInfoAction() {
+            super(NAME, CheckpointInfoResponse::new);
+        }
+    }
+
+    public static class GetSegmentFilesAction extends ActionType<GetSegmentFilesResponse> {
+
+        public static final GetSegmentFilesAction INSTANCE = new GetSegmentFilesAction();
+        public static final String NAME = "internal:index/shard/replication/get_segment_files";
+
+        private GetSegmentFilesAction() {
+            super(NAME, GetSegmentFilesResponse::new);
+        }
+
+    }
+
+    public static class GetSegmentChunkAction extends ActionType<GetSegmentChunkResponse> {
+
+        public static final GetSegmentChunkAction INSTANCE = new GetSegmentChunkAction();
+        public static final String NAME = "internal:index/shard/replication/get_segment_chunk";
+
+        private GetSegmentChunkAction() {
+            super(NAME, GetSegmentChunkResponse::new);
+        }
+
+    }
+
+    // TODO: Remove stale strings
     public static class Actions {
 
         public static final String GET_CHECKPOINT_INFO = "internal:index/shard/replication/get_checkpoint_info";
@@ -68,18 +107,30 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+
         transportService.registerRequestHandler(
-            Actions.GET_CHECKPOINT_INFO,
+            GetCheckpointInfoAction.NAME,
             ThreadPool.Names.GENERIC,
             CheckpointInfoRequest::new,
             new CheckpointInfoRequestHandler()
         );
         transportService.registerRequestHandler(
-            Actions.GET_SEGMENT_FILES,
+            GetSegmentFilesAction.NAME,
             ThreadPool.Names.GENERIC,
             GetSegmentFilesRequest::new,
             new GetSegmentFilesRequestHandler()
         );
+        transportService.registerRequestHandler(
+            GetSegmentChunkAction.NAME,
+            ThreadPool.Names.GENERIC,
+            GetSegmentChunkRequest::new,
+            new GetSegmentChunkRequestHandler()
+        );
+
+        TransportActionProxy.registerProxyAction(transportService, GetCheckpointInfoAction.NAME, CheckpointInfoResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, GetSegmentFilesAction.NAME, GetSegmentFilesResponse::new);
+        TransportActionProxy.registerProxyAction(transportService, GetSegmentChunkAction.NAME, GetSegmentChunkResponse::new);
+
         this.ongoingSegmentReplications = new OngoingSegmentReplications(indicesService, recoverySettings);
     }
 
@@ -153,6 +204,13 @@ public final class SegmentReplicationSourceService extends AbstractLifecycleComp
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
+        }
+    }
+
+    private class GetSegmentChunkRequestHandler implements TransportRequestHandler<GetSegmentChunkRequest> {
+        @Override
+        public void messageReceived(GetSegmentChunkRequest request, TransportChannel channel, Task task) throws Exception {
+            ongoingSegmentReplications.fetchSegmentChunk(request, new ChannelActionListener<>(channel, GetSegmentChunkAction.NAME, request));
         }
     }
 }

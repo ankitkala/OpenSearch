@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionType;
+import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
@@ -21,6 +23,8 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.crosscluster.PullRemoteSegmentFilesRequest;
+import org.opensearch.indices.replication.checkpoint.crosscluster.RemoteClusterConfig;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationCollection.ReplicationRef;
 import org.opensearch.indices.replication.common.ReplicationListener;
@@ -31,6 +35,7 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -44,6 +49,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
+    private final TransportService transportService;
+    private final Client client;
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
@@ -62,18 +69,28 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final ThreadPool threadPool,
         final RecoverySettings recoverySettings,
         final TransportService transportService,
+        final Client client,
         final SegmentReplicationSourceFactory sourceFactory
     ) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
+        this.transportService = transportService;
         this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
         this.sourceFactory = sourceFactory;
+        this.client = client;
 
         transportService.registerRequestHandler(
             Actions.FILE_CHUNK,
             ThreadPool.Names.GENERIC,
             FileChunkRequest::new,
             new FileChunkTransportRequestHandler()
+        );
+
+        transportService.registerRequestHandler(
+            PullSegmentsAction.NAME,
+            ThreadPool.Names.GENERIC,
+            PullRemoteSegmentFilesRequest::new,
+            new PullRemoteSegmentsActionRequestHandler()
         );
     }
 
@@ -84,13 +101,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    /**
-     * Invoked when a new checkpoint is received from a primary shard.
-     * It checks if a new checkpoint should be processed or not and starts replication if needed.
-     * @param receivedCheckpoint       received checkpoint that is checked for processing
-     * @param replicaShard      replica shard on which checkpoint is received
-     */
-    public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+    public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard, Optional<RemoteClusterConfig> remoteClusterConfig) {
         if (onGoingReplications.isShardReplicating(replicaShard.shardId())) {
             logger.trace(
                 () -> new ParameterizedMessage(
@@ -100,8 +111,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             );
             return;
         }
+
         if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
-            startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
+            startReplication(receivedCheckpoint, replicaShard, remoteClusterConfig, new SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {}
 
@@ -117,12 +129,31 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
+    /**
+     * Invoked when a new checkpoint is received from a primary shard.
+     * It checks if a new checkpoint should be processed or not and starts replication if needed.
+     * @param receivedCheckpoint       received checkpoint that is checked for processing
+     * @param replicaShard      replica shard on which checkpoint is received
+     */
+    public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
+        onNewCheckpoint(receivedCheckpoint, replicaShard, Optional.empty());
+    }
+
     public void startReplication(
         final ReplicationCheckpoint checkpoint,
         final IndexShard indexShard,
         final SegmentReplicationListener listener
     ) {
-        startReplication(new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard), listener));
+        startReplication(checkpoint, indexShard, Optional.empty(), listener);
+    }
+
+    public void startReplication(
+        final ReplicationCheckpoint checkpoint,
+        final IndexShard indexShard,
+        Optional<RemoteClusterConfig> remoteClusterConfig,
+        final SegmentReplicationListener listener
+    ) {
+        startReplication(new SegmentReplicationTarget(checkpoint, indexShard, sourceFactory.get(indexShard, remoteClusterConfig), listener));
     }
 
     public void startReplication(final SegmentReplicationTarget target) {
@@ -200,4 +231,23 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             }
         }
     }
+
+    public static class PullSegmentsAction extends ActionType<GetSegmentFilesResponse> {
+
+        public static final PullSegmentsAction INSTANCE = new PullSegmentsAction();
+        public static final String NAME = "internal:index/shard/replication/pull_segment_files";
+
+        private PullSegmentsAction() {
+            super(NAME, GetSegmentFilesResponse::new);
+        }
+
+    }
+
+    public class PullRemoteSegmentsActionRequestHandler implements TransportRequestHandler<PullRemoteSegmentFilesRequest> {
+        @Override
+        public void messageReceived(PullRemoteSegmentFilesRequest request, TransportChannel channel, Task task) throws Exception {
+            PullRemoteSegmentHandler.create(threadPool, recoverySettings, transportService, client, request, logger).start();
+        }
+    }
+
 }

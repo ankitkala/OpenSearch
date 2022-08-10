@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.store.Store;
@@ -25,7 +26,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public class CheckpointInfoResponse extends TransportResponse {
+public class CheckpointInfoResponse extends ActionResponse {
 
     private final ReplicationCheckpoint checkpoint;
     private final Store.MetadataSnapshot snapshot;

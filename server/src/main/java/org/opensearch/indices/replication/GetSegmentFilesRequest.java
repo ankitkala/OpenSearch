@@ -14,6 +14,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.SegmentReplicationTransportRequest;
+import org.opensearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,15 +25,18 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
+// Make request RemoteClusterAwareRequest so that it can be executed on the specified node on the leader cluster.
+public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest implements RemoteClusterAwareRequest {
 
     private final List<StoreFileMetadata> filesToFetch;
     private final ReplicationCheckpoint checkpoint;
+    private final DiscoveryNode targetNode;
 
     public GetSegmentFilesRequest(StreamInput in) throws IOException {
         super(in);
         this.filesToFetch = in.readList(StoreFileMetadata::new);
         this.checkpoint = new ReplicationCheckpoint(in);
+        targetNode = new DiscoveryNode(in);
     }
 
     public GetSegmentFilesRequest(
@@ -45,6 +49,7 @@ public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
         super(replicationId, targetAllocationId, targetNode);
         this.filesToFetch = filesToFetch;
         this.checkpoint = checkpoint;
+        this.targetNode = targetNode;
     }
 
     @Override
@@ -52,6 +57,7 @@ public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
         super.writeTo(out);
         out.writeList(filesToFetch);
         checkpoint.writeTo(out);
+        targetNode.writeTo(out);
     }
 
     public ReplicationCheckpoint getCheckpoint() {
@@ -60,5 +66,10 @@ public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest {
 
     public List<StoreFileMetadata> getFilesToFetch() {
         return filesToFetch;
+    }
+
+    @Override
+    public DiscoveryNode getPreferredTargetNode() {
+        return targetNode;
     }
 }

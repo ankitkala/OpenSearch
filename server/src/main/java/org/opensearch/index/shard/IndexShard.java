@@ -1432,12 +1432,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final boolean shouldProcessCheckpoint(ReplicationCheckpoint requestCheckpoint) {
         if (state().equals(IndexShardState.STARTED) == false) {
-            logger.trace(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
+            logger.info(() -> new ParameterizedMessage("Ignoring new replication checkpoint - shard is not started {}", state()));
             return false;
         }
         ReplicationCheckpoint localCheckpoint = getLatestReplicationCheckpoint();
         if (localCheckpoint.isAheadOf(requestCheckpoint)) {
-            logger.trace(
+            logger.info(
                 () -> new ParameterizedMessage(
                     "Ignoring new replication checkpoint - Shard is already on checkpoint {} that is ahead of {}",
                     localCheckpoint,
@@ -1447,7 +1447,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         if (localCheckpoint.equals(requestCheckpoint)) {
-            logger.trace(
+            logger.info(
                 () -> new ParameterizedMessage("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint)
             );
             return false;
@@ -3251,7 +3251,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             replicationTracker::getRetentionLeases,
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
-            indexSettings.isSegRepEnabled() && shardRouting.primary() == false
+            indexSettings.isSegRepEnabled() && shardRouting.primary() == false,
+            indexSettings.isSegRepEnabled() && indexSettings.isRemoteClusterSegRepEnabled() && shardRouting.primary()
         );
     }
 

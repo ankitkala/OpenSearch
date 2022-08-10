@@ -277,7 +277,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String SETTING_REPLICATION_TYPE = "index.replication.type";
     public static final Setting<ReplicationType> INDEX_REPLICATION_TYPE_SETTING = new Setting<>(
         SETTING_REPLICATION_TYPE,
-        ReplicationType.DOCUMENT.toString(),
+        // TODO: Change default to logical
+        ReplicationType.SEGMENT.toString(),
+        ReplicationType::parseString,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final String SETTING_REMOTE_REPLICATION_TYPE = "index.remote.replication.type";
+    public static final Setting<ReplicationType> INDEX_REMOTE_REPLICATION_TYPE_SETTING = new Setting<>(
+        SETTING_REMOTE_REPLICATION_TYPE,
+        // TODO: Change default to logical
+        ReplicationType.SEGMENT.toString(),
         ReplicationType::parseString,
         Property.IndexScope,
         Property.Final

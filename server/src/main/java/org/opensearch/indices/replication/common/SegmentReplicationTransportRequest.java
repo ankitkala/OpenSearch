@@ -8,6 +8,8 @@
 
 package org.opensearch.indices.replication.common;
 
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -20,7 +22,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public abstract class SegmentReplicationTransportRequest extends TransportRequest {
+public abstract class SegmentReplicationTransportRequest extends ActionRequest {
 
     private final long replicationId;
     private final String targetAllocationId;
@@ -57,6 +59,11 @@ public abstract class SegmentReplicationTransportRequest extends TransportReques
 
     public DiscoveryNode getTargetNode() {
         return targetNode;
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        return null;
     }
 
     @Override

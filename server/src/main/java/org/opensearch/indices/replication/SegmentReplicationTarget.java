@@ -138,7 +138,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
         final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
         final StepListener<Void> finalizeListener = new StepListener<>();
-
+        logger.info("Getting CHeckpoint metadata");
         // Get list of files to copy from this checkpoint.
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
@@ -155,7 +155,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         final Store.MetadataSnapshot snapshot = checkpointInfo.getSnapshot();
         Store.MetadataSnapshot localMetadata = getMetadataSnapshot();
         final Store.RecoveryDiff diff = snapshot.recoveryDiff(localMetadata);
-        logger.debug("Replication diff {}", diff);
+        logger.info("Replication diff {}", diff);
         // Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming snapshot
         // from
         // source that means the local copy of the segment has been corrupted/changed in some way and we throw an IllegalStateException to
@@ -190,6 +190,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
+            logger.info("applying the diff");
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
             store.incRef();

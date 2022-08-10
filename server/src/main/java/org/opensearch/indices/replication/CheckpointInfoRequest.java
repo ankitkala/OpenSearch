@@ -8,11 +8,14 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.SegmentReplicationTransportRequest;
+import org.opensearch.transport.RemoteClusterAware;
+import org.opensearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 
@@ -23,13 +26,22 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class CheckpointInfoRequest extends SegmentReplicationTransportRequest {
+// Make request RemoteClusterAwareRequest so that it can be executed on the specified node on the leader cluster.
+public class CheckpointInfoRequest extends SegmentReplicationTransportRequest implements RemoteClusterAwareRequest {
 
     private final ReplicationCheckpoint checkpoint;
+    private final DiscoveryNode targetNode;
+    private final Boolean isRemote;
+
+    public Boolean getRemote() {
+        return isRemote;
+    }
 
     public CheckpointInfoRequest(StreamInput in) throws IOException {
         super(in);
         checkpoint = new ReplicationCheckpoint(in);
+        targetNode = new DiscoveryNode(in);
+        isRemote = in.readBoolean();
     }
 
     public CheckpointInfoRequest(
@@ -38,17 +50,37 @@ public class CheckpointInfoRequest extends SegmentReplicationTransportRequest {
         DiscoveryNode targetNode,
         ReplicationCheckpoint checkpoint
     ) {
+        this(replicationId, targetAllocationId, targetNode, false, checkpoint);
+    }
+
+    public CheckpointInfoRequest(
+        long replicationId,
+        String targetAllocationId,
+        DiscoveryNode targetNode,
+        Boolean isRemote,
+        ReplicationCheckpoint checkpoint
+    ) {
         super(replicationId, targetAllocationId, targetNode);
         this.checkpoint = checkpoint;
+        this.targetNode = targetNode;
+        this.isRemote = isRemote;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         checkpoint.writeTo(out);
+        targetNode.writeTo(out);
+        out.writeBoolean(isRemote);
     }
 
     public ReplicationCheckpoint getCheckpoint() {
         return checkpoint;
     }
+
+    @Override
+    public DiscoveryNode getPreferredTargetNode() {
+        return targetNode;
+    }
+
 }

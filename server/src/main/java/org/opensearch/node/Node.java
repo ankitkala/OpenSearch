@@ -224,6 +224,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.common.util.FeatureFlags.REMOTE_SEG_REPLICATION;
 import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
@@ -941,6 +942,7 @@ public class Node implements Closeable {
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
+
                     if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
                         b.bind(SegmentReplicationTargetService.class)
                             .toInstance(
@@ -948,7 +950,8 @@ public class Node implements Closeable {
                                     threadPool,
                                     recoverySettings,
                                     transportService,
-                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService)
+                                    client,
+                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService, client)
                                 )
                             );
                         b.bind(SegmentReplicationSourceService.class)

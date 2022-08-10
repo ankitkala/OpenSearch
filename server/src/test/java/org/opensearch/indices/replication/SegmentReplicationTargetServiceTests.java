@@ -53,7 +53,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(indexShard)).thenReturn(replicationSource);
 
-        sut = new SegmentReplicationTargetService(threadPool, recoverySettings, transportService, replicationSourceFactory);
+        sut = new SegmentReplicationTargetService(threadPool, recoverySettings, transportService, client, replicationSourceFactory);
     }
 
     @Override

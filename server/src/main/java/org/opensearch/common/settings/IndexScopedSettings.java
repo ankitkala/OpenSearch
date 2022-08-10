@@ -218,6 +218,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final Map<String, Setting> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.REPLICATION_TYPE,
         IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+        FeatureFlags.REMOTE_SEG_REPLICATION,
+        IndexMetadata.INDEX_REMOTE_REPLICATION_TYPE_SETTING,
         FeatureFlags.REMOTE_STORE,
         IndexMetadata.INDEX_REMOTE_STORE_SETTING
     );

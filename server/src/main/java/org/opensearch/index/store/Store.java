@@ -921,6 +921,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
+        // Added temporarily for debugging.
+        @Override
+        public String toString() {
+            return metadata.toString();
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.metadata.size());
@@ -1003,7 +1009,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // version is written since 3.1+: we should have already hit IndexFormatTooOld.
                     throw new IllegalArgumentException("expected valid version value: " + info.info.toString());
                 }
-                if (version.onOrAfter(maxVersion)) {
+                if (maxVersion == null || version.onOrAfter(maxVersion)) {
                     maxVersion = version;
                 }
                 for (String file : info.files()) {

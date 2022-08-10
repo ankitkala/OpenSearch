@@ -212,6 +212,22 @@ public final class SegmentFileTransferHandler {
      * @opensearch.internal
      */
     public static final class FileChunk implements MultiChunkTransfer.ChunkRequest, Releasable {
+        public StoreFileMetadata getMd() {
+            return md;
+        }
+
+        public BytesReference getContent() {
+            return content;
+        }
+
+        public long getPosition() {
+            return position;
+        }
+
+        public boolean isLastChunk() {
+            return lastChunk;
+        }
+
         final StoreFileMetadata md;
         final BytesReference content;
         final long position;

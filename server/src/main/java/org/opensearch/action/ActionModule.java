@@ -243,6 +243,8 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.action.support.replication.crosscluster.follower.SyncLeaderSegmentsAction;
+import org.opensearch.action.support.replication.crosscluster.follower.TransportSyncLeaderSegmentsAction;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.TermVectorsAction;
 import org.opensearch.action.termvectors.TransportMultiTermVectorsAction;
@@ -264,6 +266,7 @@ import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.indices.replication.checkpoint.crosscluster.GetLeaderReplicationCheckpoint;
 import org.opensearch.persistent.CompletionPersistentTaskAction;
 import org.opensearch.persistent.RemovePersistentTaskAction;
 import org.opensearch.persistent.StartPersistentTaskAction;
@@ -656,6 +659,11 @@ public class ActionModule extends AbstractModule {
         actions.register(ImportDanglingIndexAction.INSTANCE, TransportImportDanglingIndexAction.class);
         actions.register(DeleteDanglingIndexAction.INSTANCE, TransportDeleteDanglingIndexAction.class);
         actions.register(FindDanglingIndexAction.INSTANCE, TransportFindDanglingIndexAction.class);
+
+        //TODO: Move to SegmentReplicationTargetService.
+        actions.register(SyncLeaderSegmentsAction.INSTANCE, TransportSyncLeaderSegmentsAction.class);
+        actions.register(GetLeaderReplicationCheckpoint.INSTANCE, GetLeaderReplicationCheckpoint.class);
+
 
         return unmodifiableMap(actions.getRegistry());
     }

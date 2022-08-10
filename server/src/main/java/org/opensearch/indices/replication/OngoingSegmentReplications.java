@@ -8,8 +8,11 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.IndexService;
@@ -19,7 +22,10 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.crosscluster.GetSegmentChunkRequest;
+import org.opensearch.indices.replication.checkpoint.crosscluster.GetSegmentChunkResponse;
 import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,6 +41,7 @@ import java.util.Map;
  */
 class OngoingSegmentReplications {
 
+    private static final Logger logger = LogManager.getLogger(OngoingSegmentReplications.class);
     private final RecoverySettings recoverySettings;
     private final IndicesService indicesService;
     private final Map<ReplicationCheckpoint, CopyState> copyStateMap;
@@ -145,9 +152,10 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
+        logger.info("Creating handler for {}:{}", request.getReplicationId(), request.getTargetNode());
         if (nodesToHandlers.putIfAbsent(
             request.getTargetNode(),
-            createTargetHandler(request.getTargetNode(), copyState, fileChunkWriter)
+            createTargetHandler(request.getTargetNode(), request.getRemote(), copyState, fileChunkWriter)
         ) != null) {
             throw new OpenSearchException(
                 "Shard copy {} on node {} already replicating",
@@ -189,9 +197,10 @@ class OngoingSegmentReplications {
         return copyStateMap.size();
     }
 
-    private SegmentReplicationSourceHandler createTargetHandler(DiscoveryNode node, CopyState copyState, FileChunkWriter fileChunkWriter) {
+    private SegmentReplicationSourceHandler createTargetHandler(DiscoveryNode node, Boolean isRemote, CopyState copyState, FileChunkWriter fileChunkWriter) {
         return new SegmentReplicationSourceHandler(
             node,
+            isRemote,
             fileChunkWriter,
             copyState.getShard().getThreadPool(),
             copyState,
@@ -226,5 +235,14 @@ class OngoingSegmentReplications {
         if (copyState.decRef() == true) {
             copyStateMap.remove(copyState.getRequestedReplicationCheckpoint());
         }
+    }
+
+    public void fetchSegmentChunk(GetSegmentChunkRequest request, ActionListener<GetSegmentChunkResponse> listener) {
+        // Leader's nodes can't talk to follower's node in case of remote clusters. This is being used as just a mechanism
+        // for getting the dedicated handler.
+        final DiscoveryNode node = request.getSourceNode();
+        logger.info("Fetching handler for {}", request.getSourceNode());
+        final SegmentReplicationSourceHandler handler = nodesToHandlers.get(node);
+        handler.fetchSegmentChunk(request, listener);
     }
 }

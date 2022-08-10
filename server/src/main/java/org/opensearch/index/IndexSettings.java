@@ -534,6 +534,7 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final ReplicationType replicationType;
+    private final ReplicationType remoteReplicationType;
     private final boolean isRemoteStoreEnabled;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -687,6 +688,7 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        remoteReplicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REMOTE_REPLICATION_TYPE));
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE, false);
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
@@ -927,6 +929,10 @@ public final class IndexSettings {
      */
     public boolean isSegRepEnabled() {
         return ReplicationType.SEGMENT.equals(replicationType);
+    }
+
+    public boolean isRemoteClusterSegRepEnabled() {
+        return ReplicationType.SEGMENT.equals(remoteReplicationType);
     }
 
     /**

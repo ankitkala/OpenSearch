@@ -9,13 +9,18 @@
 package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.logging.Loggers;
+import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -26,11 +31,14 @@ import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
+import org.opensearch.indices.replication.checkpoint.crosscluster.GetSegmentChunkRequest;
+import org.opensearch.indices.replication.checkpoint.crosscluster.GetSegmentChunkResponse;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -54,11 +62,17 @@ class SegmentReplicationSourceHandler {
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final Logger logger;
     private final AtomicBoolean isReplicating = new AtomicBoolean();
+    private final Boolean isRemote;
+
+    private InputStreamIndexInput currentInput = null;
+    private long offset = 0;
+    private int fileChunkSizeInBytes;
 
     /**
      * Constructor.
      *
      * @param targetNode              - {@link DiscoveryNode} target node where files should be sent.
+     * @param isRemote              - {@link Boolean} true is target node belongs to a remote cluster.
      * @param writer                  {@link FileChunkWriter} implementation that sends file chunks over the transport layer.
      * @param threadPool              {@link ThreadPool} Thread pool.
      * @param copyState               {@link CopyState} CopyState holding segment file metadata.
@@ -67,6 +81,7 @@ class SegmentReplicationSourceHandler {
      */
     SegmentReplicationSourceHandler(
         DiscoveryNode targetNode,
+        Boolean isRemote,
         FileChunkWriter writer,
         ThreadPool threadPool,
         CopyState copyState,
@@ -90,8 +105,20 @@ class SegmentReplicationSourceHandler {
             maxConcurrentFileChunks
         );
         this.copyState = copyState;
+        this.isRemote = isRemote;
+        this.fileChunkSizeInBytes = fileChunkSizeInBytes;
     }
 
+    SegmentReplicationSourceHandler(
+        DiscoveryNode targetNode,
+        FileChunkWriter writer,
+        ThreadPool threadPool,
+        CopyState copyState,
+        int fileChunkSizeInBytes,
+        int maxConcurrentFileChunks
+    ) {
+        this(targetNode, false, writer, threadPool, copyState,  fileChunkSizeInBytes, maxConcurrentFileChunks);
+    }
     /**
      * Sends Segment files from the local node to the given target.
      *
@@ -114,7 +141,7 @@ class SegmentReplicationSourceHandler {
             RunUnderPrimaryPermit.run(() -> {
                 final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
                 ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
-                if (targetShardRouting == null) {
+                if (targetShardRouting == null && isRemote == false) {
                     logger.debug(
                         "delaying replication of {} as it is not listed as assigned to target node {}",
                         shard.shardId(),
@@ -166,5 +193,56 @@ class SegmentReplicationSourceHandler {
 
     public boolean isReplicating() {
         return isReplicating.get();
+    }
+
+    public void fetchSegmentChunk(GetSegmentChunkRequest request, ActionListener<GetSegmentChunkResponse> listener) {
+        StoreFileMetadata md = request.getMetadataFilename();
+        try {
+            // Open the input stream, if not already
+            if(currentInput == null) {
+                IndexInput indexInput = shard.store().directory().openInput(request.getMetadataFilename().name(), IOContext.READONCE);
+                currentInput = new InputStreamIndexInput(indexInput, md.length()) {
+                    @Override
+                    public void close() throws IOException {
+                        IOUtils.close(indexInput, super::close); // InputStreamIndexInput's close is a noop
+                    }
+                };
+                offset = 0;
+            }
+
+            // Read the file chunk
+            final byte[] buffer = new byte[fileChunkSizeInBytes];
+            final int bytesRead = currentInput.read(buffer);
+            if (bytesRead == -1) {
+                listener.onFailure(new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name()));
+            }
+
+            offset += bytesRead;
+            boolean lastChunk = offset >= md.length();
+
+            // Close the input stream if its last chunk.
+            if(lastChunk) {
+                IOUtils.close(currentInput, () -> currentInput = null);
+            }
+
+            // Send response.
+            final GetSegmentChunkResponse response = new GetSegmentChunkResponse(
+                md,
+                new BytesArray(buffer, 0, bytesRead),
+                offset,
+                lastChunk
+            );
+
+            listener.onResponse(response);
+
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+
+
+
+
+
+
     }
 }

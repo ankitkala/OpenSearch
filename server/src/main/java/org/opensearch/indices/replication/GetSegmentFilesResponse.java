@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -21,7 +22,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public class GetSegmentFilesResponse extends TransportResponse {
+public class GetSegmentFilesResponse extends ActionResponse {
 
     List<StoreFileMetadata> files;
 

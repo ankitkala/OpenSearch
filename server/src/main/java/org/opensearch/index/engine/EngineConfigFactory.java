@@ -147,7 +147,8 @@ public class EngineConfigFactory {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
-        boolean isReadOnlyReplica
+        boolean isReadOnlyReplica,
+        boolean isReadOnlyPrimary
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -178,7 +179,8 @@ public class EngineConfigFactory {
             retentionLeasesSupplier,
             primaryTermSupplier,
             tombstoneDocSupplier,
-            isReadOnlyReplica
+            isReadOnlyReplica,
+            isReadOnlyPrimary
         );
     }
 

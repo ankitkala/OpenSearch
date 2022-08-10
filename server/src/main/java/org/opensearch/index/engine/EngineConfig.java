@@ -97,7 +97,9 @@ public final class EngineConfig {
     private final CircuitBreakerService circuitBreakerService;
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
+    // Replace the two flags with a single one.
     private final boolean isReadOnlyReplica;
+    private final boolean isReadOnlyPrimary;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -253,6 +255,7 @@ public final class EngineConfig {
             retentionLeasesSupplier,
             primaryTermSupplier,
             tombstoneDocSupplier,
+            false,
             false
         );
     }
@@ -284,7 +287,8 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         TombstoneDocSupplier tombstoneDocSupplier,
-        boolean isReadOnlyReplica
+        boolean isReadOnlyReplica,
+        boolean isReadOnlyPrimary
     ) {
         if (isReadOnlyReplica && indexSettings.isSegRepEnabled() == false) {
             throw new IllegalArgumentException("Shard can only be wired as a read only replica with Segment Replication enabled");
@@ -328,6 +332,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = primaryTermSupplier;
         this.tombstoneDocSupplier = tombstoneDocSupplier;
         this.isReadOnlyReplica = isReadOnlyReplica;
+        this.isReadOnlyPrimary = isReadOnlyPrimary;
     }
 
     /**
@@ -531,6 +536,11 @@ public final class EngineConfig {
     public boolean isReadOnlyReplica() {
         return indexSettings.isSegRepEnabled() && isReadOnlyReplica;
     }
+
+    public boolean isReadOnlyPrimary() {
+        return indexSettings.isSegRepEnabled() && indexSettings.isRemoteClusterSegRepEnabled() && isReadOnlyPrimary;
+    }
+
 
     /**
      * A supplier supplies tombstone documents which will be used in soft-update methods.
