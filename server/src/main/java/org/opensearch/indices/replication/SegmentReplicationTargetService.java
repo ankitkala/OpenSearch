@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.client.Client;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
@@ -224,7 +225,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(final FileChunkRequest request, TransportChannel channel, Task task) throws Exception {
-            try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.getSafe(request.recoveryId(), request.shardId())) {
+            //TODO: move to getSafe.
+            try (ReplicationRef<SegmentReplicationTarget> ref = onGoingReplications.get(request.recoveryId())) {
                 final SegmentReplicationTarget target = ref.get();
                 final ActionListener<Void> listener = target.createOrFinishListener(channel, Actions.FILE_CHUNK, request);
                 target.handleFileChunk(request, target, bytesSinceLastPause, recoverySettings.rateLimiter(), listener);
@@ -246,7 +248,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     public class PullRemoteSegmentsActionRequestHandler implements TransportRequestHandler<PullRemoteSegmentFilesRequest> {
         @Override
         public void messageReceived(PullRemoteSegmentFilesRequest request, TransportChannel channel, Task task) throws Exception {
-            PullRemoteSegmentHandler.create(threadPool, recoverySettings, transportService, client, request, logger).start();
+            PullRemoteSegmentHandler.create(threadPool, recoverySettings, transportService, client, request, logger,
+                new ChannelActionListener<>(channel, PullSegmentsAction.NAME, request)).start();
         }
     }
 

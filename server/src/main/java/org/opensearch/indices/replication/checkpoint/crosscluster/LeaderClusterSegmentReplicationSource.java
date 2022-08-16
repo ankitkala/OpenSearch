@@ -38,10 +38,10 @@ public class LeaderClusterSegmentReplicationSource implements SegmentReplication
     private static final Logger logger = LogManager.getLogger(LeaderClusterSegmentReplicationSource.class);
 
 
-    private final DiscoveryNode currentNode;
+    private final DiscoveryNode targetNode;
     private final String targetAllocationId;
     private final Client remoteClient;
-    private final DiscoveryNode targetNode;
+    private final DiscoveryNode sourceNode;
     private final RetryableTransportClient transportClient;
     private final String remoteClusterAlias;
 
@@ -51,10 +51,10 @@ public class LeaderClusterSegmentReplicationSource implements SegmentReplication
         RemoteClusterConfig remoteClusterConfig,
         RecoverySettings recoverySettings, TransportService transportService) {
         this.targetAllocationId = targetAllocationId;
-        this.currentNode = currentNode;
+        this.targetNode = remoteClusterConfig.getTargetNode();
+        this.sourceNode = currentNode;
         this.remoteClient = remoteClusterConfig.getRemoteClient();
         this.remoteClusterAlias = remoteClusterConfig.remoteClusterAlias();
-        this.targetNode = remoteClusterConfig.getTargetNode();
         this.transportClient = new RetryableTransportClient(
             transportService,
             currentNode,
@@ -71,7 +71,7 @@ public class LeaderClusterSegmentReplicationSource implements SegmentReplication
     ) {
         logger.info("Getting checkpoint metadata from leader");
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, targetAllocationId, targetNode, true, checkpoint);
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, targetAllocationId, sourceNode, targetNode, true, checkpoint);
         //TODO: Add retries
         remoteClient.execute(GetCheckpointInfoAction.INSTANCE, request, responseListener);
     }
@@ -89,10 +89,10 @@ public class LeaderClusterSegmentReplicationSource implements SegmentReplication
         final PullRemoteSegmentFilesRequest request = new PullRemoteSegmentFilesRequest(
             replicationId,
             targetAllocationId,
-            targetNode,
+            sourceNode,
             filesToFetch,
             checkpoint,
-            currentNode,
+            targetNode,
             Optional.of(remoteClusterAlias));
 
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;

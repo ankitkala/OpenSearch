@@ -240,8 +240,8 @@ class OngoingSegmentReplications {
     public void fetchSegmentChunk(GetSegmentChunkRequest request, ActionListener<GetSegmentChunkResponse> listener) {
         // Leader's nodes can't talk to follower's node in case of remote clusters. This is being used as just a mechanism
         // for getting the dedicated handler.
-        final DiscoveryNode node = request.getSourceNode();
-        logger.info("Fetching handler for {}", request.getSourceNode());
+        final DiscoveryNode node = request.getTargetNode();
+        logger.info("Fetching handler for {}", request.getTargetNode());
         final SegmentReplicationSourceHandler handler = nodesToHandlers.get(node);
         handler.fetchSegmentChunk(request, listener);
     }

@@ -28,13 +28,13 @@ public class PullRemoteSegmentHandler {
         this.transfer = transfer;
     }
 
-    public static PullRemoteSegmentHandler create(ThreadPool threadPool, RecoverySettings recoverySettings, TransportService transportService, Client client, PullRemoteSegmentFilesRequest request, Logger logger) {
+    public static PullRemoteSegmentHandler create(ThreadPool threadPool, RecoverySettings recoverySettings, TransportService transportService, Client client, PullRemoteSegmentFilesRequest request, Logger logger, ActionListener listener) {
         final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
             request.getRequest().getReplicationId(),
             recoverySettings,
             new RetryableTransportClient(
                 transportService,
-                request.getCurrentNode(),
+                request.getTargetNode(),
                 //request.getRequest().getTargetNode(),
                 recoverySettings.internalActionRetryTimeout(),
                 logger
@@ -44,18 +44,6 @@ public class PullRemoteSegmentHandler {
             new AtomicLong(0),
             (throttleTime) -> {}
         );
-
-        ActionListener<Void> listener =  new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void unused) {
-                logger.info("Pull Segment completed");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("Pull Segment failed {}", e);
-            }
-        };
 
         // TODO: Add a setting for concurrent fetches.
         MultiChunkTransfer transfer = new RemoteClusterMultiChunkTransfer(logger, threadPool.getThreadContext(), listener, 5, request, segmentSegmentFileChunkWriter, client);

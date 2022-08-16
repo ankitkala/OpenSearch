@@ -29,8 +29,11 @@ public class RemoteClusterMultiChunkTransfer extends MultiChunkTransfer<StoreFil
     protected static Logger logger = LogManager.getLogger(RemoteClusterMultiChunkTransfer.class);
     private FileChunkWriter writer;
     private Client remoteClient;
-    private DiscoveryNode currentNode;
+    private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
+
+    private long replicationId;
+    private String targetAllocationId;
     //Optional<String> remoteClusterAlias;
     public RemoteClusterMultiChunkTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
                                            int maxConcurrentChunks, PullRemoteSegmentFilesRequest request,
@@ -38,18 +41,20 @@ public class RemoteClusterMultiChunkTransfer extends MultiChunkTransfer<StoreFil
         super(logger, threadContext, listener, maxConcurrentChunks, request.getRequest().getFilesToFetch());
         this.writer = writer;
         this.remoteClient = request.getRemoteClusterAlias().map(a -> client.getRemoteClusterClient(a)).orElse(client);
-        this.currentNode = request.getCurrentNode();
-        this.targetNode = request.getRequest().getTargetNode();
+        this.targetNode = request.getTargetNode();
+        this.sourceNode = request.getSourceNode();
+        this.replicationId = request.getReplicationId();
+        this.targetAllocationId = request.getTargetAllocationId();
     }
 
     @Override
     protected GetSegmentChunkResponse nextChunkRequest(StoreFileMetadata resource) {
         // Fetch chunk from remote cluster.
         logger.info("fetching segment {}", resource);
-        final GetSegmentChunkRequest request = new GetSegmentChunkRequest(resource, currentNode, targetNode);
+        final GetSegmentChunkRequest request = new GetSegmentChunkRequest(replicationId, targetAllocationId, resource, sourceNode, targetNode);
         ActionFuture<GetSegmentChunkResponse> future = remoteClient.execute(SegmentReplicationSourceService.GetSegmentChunkAction.INSTANCE, request);
         GetSegmentChunkResponse response = future.actionGet();
-        logger.info("GOt the segment {}", resource);
+        logger.info("Got the segment {}", resource);
         return response;
     }
 

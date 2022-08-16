@@ -30,7 +30,10 @@ import java.io.IOException;
 public class CheckpointInfoRequest extends SegmentReplicationTransportRequest implements RemoteClusterAwareRequest {
 
     private final ReplicationCheckpoint checkpoint;
+    // node with replica shard
     private final DiscoveryNode targetNode;
+    // node with primary shard
+    private final DiscoveryNode sourceNode;
     private final Boolean isRemote;
 
     public Boolean getRemote() {
@@ -40,6 +43,7 @@ public class CheckpointInfoRequest extends SegmentReplicationTransportRequest im
     public CheckpointInfoRequest(StreamInput in) throws IOException {
         super(in);
         checkpoint = new ReplicationCheckpoint(in);
+        sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
         isRemote = in.readBoolean();
     }
@@ -48,20 +52,23 @@ public class CheckpointInfoRequest extends SegmentReplicationTransportRequest im
         long replicationId,
         String targetAllocationId,
         DiscoveryNode targetNode,
+        DiscoveryNode sourceNode,
         ReplicationCheckpoint checkpoint
     ) {
-        this(replicationId, targetAllocationId, targetNode, false, checkpoint);
+        this(replicationId, targetAllocationId, sourceNode, targetNode, false, checkpoint);
     }
 
     public CheckpointInfoRequest(
         long replicationId,
         String targetAllocationId,
         DiscoveryNode targetNode,
+        DiscoveryNode sourceNode,
         Boolean isRemote,
         ReplicationCheckpoint checkpoint
     ) {
         super(replicationId, targetAllocationId, targetNode);
         this.checkpoint = checkpoint;
+        this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         this.isRemote = isRemote;
     }
@@ -70,6 +77,7 @@ public class CheckpointInfoRequest extends SegmentReplicationTransportRequest im
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         checkpoint.writeTo(out);
+        sourceNode.writeTo(out);
         targetNode.writeTo(out);
         out.writeBoolean(isRemote);
     }
@@ -78,9 +86,13 @@ public class CheckpointInfoRequest extends SegmentReplicationTransportRequest im
         return checkpoint;
     }
 
+    public DiscoveryNode getSourceNode() {
+        return sourceNode;
+    }
+
     @Override
     public DiscoveryNode getPreferredTargetNode() {
-        return targetNode;
+        return sourceNode;
     }
 
 }

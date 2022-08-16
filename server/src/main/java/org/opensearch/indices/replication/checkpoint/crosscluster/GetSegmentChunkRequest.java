@@ -14,17 +14,19 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.common.SegmentReplicationTransportRequest;
 import org.opensearch.transport.RemoteClusterAwareRequest;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class GetSegmentChunkRequest extends ActionRequest implements RemoteClusterAwareRequest {
+public class GetSegmentChunkRequest extends SegmentReplicationTransportRequest implements RemoteClusterAwareRequest {
     private final StoreFileMetadata file;
     private final DiscoveryNode targetNode;
     private final DiscoveryNode sourceNode;
 
-    public GetSegmentChunkRequest(StoreFileMetadata file, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
+    public GetSegmentChunkRequest(long replicationId, String targetAllocationId,StoreFileMetadata file, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
+        super(replicationId, targetAllocationId, targetNode);
         this.file = file;
         this.targetNode = targetNode;
         this.sourceNode = sourceNode;
@@ -50,9 +52,6 @@ public class GetSegmentChunkRequest extends ActionRequest implements RemoteClust
         return null;
     }
 
-    public DiscoveryNode getSourceNode() {
-        return sourceNode;
-    }
 
     public StoreFileMetadata getMetadataFilename() {
         return file;
@@ -60,6 +59,6 @@ public class GetSegmentChunkRequest extends ActionRequest implements RemoteClust
 
     @Override
     public DiscoveryNode getPreferredTargetNode() {
-        return targetNode;
+        return sourceNode;
     }
 }

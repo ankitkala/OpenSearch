@@ -26,7 +26,7 @@ import java.util.List;
  * @opensearch.internal
  */
 // Make request RemoteClusterAwareRequest so that it can be executed on the specified node on the leader cluster.
-public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest implements RemoteClusterAwareRequest {
+public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest  {
 
     private final List<StoreFileMetadata> filesToFetch;
     private final ReplicationCheckpoint checkpoint;
@@ -66,10 +66,5 @@ public class GetSegmentFilesRequest extends SegmentReplicationTransportRequest i
 
     public List<StoreFileMetadata> getFilesToFetch() {
         return filesToFetch;
-    }
-
-    @Override
-    public DiscoveryNode getPreferredTargetNode() {
-        return targetNode;
     }
 }

@@ -36,15 +36,16 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     private static final Logger logger = LogManager.getLogger(PrimaryShardReplicationSource.class);
 
     private final RetryableTransportClient transportClient;
+    private final DiscoveryNode sourceNode;
     private final DiscoveryNode targetNode;
     private final String targetAllocationId;
 
     public PrimaryShardReplicationSource(
-        DiscoveryNode targetNode,
+        DiscoveryNode sourceNode,
         String targetAllocationId,
         TransportService transportService,
         RecoverySettings recoverySettings,
-        DiscoveryNode sourceNode
+        DiscoveryNode targetNode
     ) {
         this.targetAllocationId = targetAllocationId;
         this.transportClient = new RetryableTransportClient(
@@ -53,7 +54,10 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             recoverySettings.internalActionRetryTimeout(),
             logger
         );
+        // primary shard node
         this.targetNode = targetNode;
+        // current node
+        this.sourceNode = sourceNode;
     }
 
     @Override
@@ -64,7 +68,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<CheckpointInfoResponse> reader = CheckpointInfoResponse::new;
         final ActionListener<CheckpointInfoResponse> responseListener = ActionListener.map(listener, r -> r);
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, targetAllocationId, targetNode, checkpoint);
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(replicationId, targetAllocationId, sourceNode, targetNode, checkpoint);
         transportClient.executeRetryableAction(GET_CHECKPOINT_INFO, request, responseListener, reader);
     }
 

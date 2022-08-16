@@ -59,7 +59,8 @@ public class WriteOnlyTranslogManager extends InternalTranslogManager {
     @Override
     public int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo)
         throws IOException {
-        throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
+        //throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
+        return 0;
     }
 
     @Override

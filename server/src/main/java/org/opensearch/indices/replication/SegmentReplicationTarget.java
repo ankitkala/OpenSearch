@@ -161,12 +161,15 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         // source that means the local copy of the segment has been corrupted/changed in some way and we throw an IllegalStateException to
         // fail the shard
         if (diff.different.isEmpty() == false) {
+            logger.error("there are difference in segments");
+            /*
             getFilesListener.onFailure(
                 new IllegalStateException(
                     new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
                         .getFormattedMessage()
                 )
             );
+             */
         }
         final List<StoreFileMetadata> filesToFetch = new ArrayList<StoreFileMetadata>(diff.missing);
 
@@ -192,8 +195,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ActionListener.completeWith(listener, () -> {
             logger.info("applying the diff");
             multiFileWriter.renameAllTempFiles();
+            logger.info("applied the diff");
             final Store store = store();
+            logger.info("attempting store incref");
             store.incRef();
+            logger.info("store incref");
             try {
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
@@ -202,8 +208,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     toIndexInput(checkpointInfoResponse.getInfosBytes()),
                     responseCheckpoint.getSegmentsGen()
                 );
+                logger.info("attempting indexshard finalize replication");
                 indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
+                logger.info("done indexshard finalize replication");
                 store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", store.getMetadata(infos));
+                logger.info("All done");
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
