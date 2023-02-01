@@ -41,6 +41,9 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.xreplication.services.XReplicationFollowerService;
+import org.opensearch.xreplication.services.XReplicationLeaderService;
+import org.opensearch.persistent.*;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
@@ -155,10 +158,6 @@ import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.persistent.PersistentTasksClusterService;
-import org.opensearch.persistent.PersistentTasksExecutor;
-import org.opensearch.persistent.PersistentTasksExecutorRegistry;
-import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
@@ -204,6 +203,15 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
+import org.opensearch.xreplication.task.follower.FollowerReplicationExecutor;
+import org.opensearch.xreplication.task.follower.FollowerReplicationParams;
+import org.opensearch.xreplication.task.follower.FollowerReplicationState;
+import org.opensearch.xreplication.task.index.IndexReplicationExecutor;
+import org.opensearch.xreplication.task.index.IndexReplicationParams;
+import org.opensearch.xreplication.task.index.IndexReplicationState;
+import org.opensearch.xreplication.task.supervisor.SupervisorReplicationExecutor;
+import org.opensearch.xreplication.task.supervisor.SupervisorReplicationParams;
+import org.opensearch.xreplication.task.supervisor.SupervisorReplicationState;
 
 import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
@@ -236,6 +244,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;
+import static org.opensearch.common.util.FeatureFlags.X_REPLICATION;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
 /**
@@ -603,6 +612,23 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedWriteables().stream()),
                 ClusterModule.getNamedWriteables().stream()
             ).flatMap(Function.identity()).collect(Collectors.toList());
+
+
+            // FCR writables
+            namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, SupervisorReplicationExecutor.NAME,
+                SupervisorReplicationState.READER));
+            namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, IndexReplicationExecutor.NAME,
+                IndexReplicationState.READER));
+            namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, FollowerReplicationExecutor.NAME,
+                FollowerReplicationState.READER));
+            namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, SupervisorReplicationExecutor.NAME,
+                SupervisorReplicationParams.READER));
+            namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, IndexReplicationExecutor.NAME,
+                IndexReplicationParams.READER));
+            namedWriteables.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, FollowerReplicationExecutor.NAME,
+                FollowerReplicationParams.READER));
+
+
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
                 Stream.of(
@@ -985,6 +1011,17 @@ public class Node implements Closeable {
                 searchModule.getIndexSearcherExecutor(threadPool)
             );
 
+            final XReplicationLeaderService leaderService;
+            final XReplicationFollowerService followerService;
+            //TODO: remove the hardcoded value
+            if (true || FeatureFlags.isEnabled(X_REPLICATION)) {
+                leaderService = new XReplicationLeaderService(threadPool, transportService, clusterService, recoverySettings);
+                followerService = new XReplicationFollowerService(threadPool, transportService, clusterService, recoverySettings);
+            } else {
+                leaderService = XReplicationLeaderService.NO_OP;
+                followerService = XReplicationFollowerService.NO_OP;
+            }
+
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
                 .map(
@@ -998,6 +1035,10 @@ public class Node implements Closeable {
                 )
                 .flatMap(List::stream)
                 .collect(toList());
+            tasksExecutors.add(new IndexReplicationExecutor(clusterService, threadPool, client, leaderService));
+            tasksExecutors.add(new SupervisorReplicationExecutor(clusterService, threadPool, client, leaderService));
+            tasksExecutors.add(new FollowerReplicationExecutor(clusterService, threadPool, client, leaderService));
+
 
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(tasksExecutors);
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
@@ -1077,6 +1118,9 @@ public class Node implements Closeable {
                         b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
                         b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
                     }
+                    b.bind(XReplicationLeaderService.class).toInstance(leaderService);
+                    b.bind(XReplicationFollowerService.class).toInstance(followerService);
+
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));

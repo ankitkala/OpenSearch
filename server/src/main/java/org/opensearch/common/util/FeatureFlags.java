@@ -28,6 +28,12 @@ public class FeatureFlags {
     public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
 
     /**
+     * Gates the functionality of full cluster replication.
+     * Once the feature is ready for production release, this feature flag can be removed.
+     */
+    public static final String X_REPLICATION = "opensearch.experimental.feature.full_cluster_replication.enabled";
+
+    /**
      * Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
      * Once the feature is ready for production release, this feature flag can be removed.
      */
@@ -43,7 +49,7 @@ public class FeatureFlags {
 
     /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
-     * guaranteed backward compatibility for OpenSearch (one prior major version) on a best effort basis.
+     * guaranteed backward compatibility translog.durabilityfor OpenSearch (one prior major version) on a best effort basis.
      */
     public static final String SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY =
         "opensearch.experimental.feature.searchable_snapshot.extended_compatibility.enabled";
@@ -75,6 +81,7 @@ public class FeatureFlags {
      * and false otherwise.
      */
     public static boolean isEnabled(String featureFlagName) {
+        if (REPLICATION_TYPE.equals(featureFlagName) || REMOTE_STORE.equals(featureFlagName)) return true;
         if ("true".equalsIgnoreCase(System.getProperty(featureFlagName))) {
             // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
             return true;

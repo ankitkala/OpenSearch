@@ -77,15 +77,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.SearchIndexNameMatcher;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
-import org.opensearch.index.shard.IndexEventListener;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.index.shard.IndexingOperationListener;
-import org.opensearch.index.shard.SearchOperationListener;
-import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.shard.ShardNotFoundException;
-import org.opensearch.index.shard.ShardNotInPrimaryModeException;
-import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.shard.*;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
@@ -438,7 +430,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -510,7 +503,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
-                remoteStore
+                remoteStore,
+                remoteSegmentNotificationPublisher
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

@@ -591,6 +591,7 @@ public final class IndexSettings {
     private final String remoteStoreTranslogRepository;
     private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
+    private final Boolean is_ccr_follower;
     private Version extendedCompatibilitySnapshotVersion;
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -751,6 +752,7 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        logger.info("[ankikala] Replication type is {} for {}", replicationType, index.getName());
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
@@ -766,6 +768,8 @@ public final class IndexSettings {
         } else {
             extendedCompatibilitySnapshotVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
         }
+        // Check for Follower mode.
+        this.is_ccr_follower = settings.getAsBoolean(IndexMetadata.FOLLOWER_INDEX_SETTING.getKey(), false);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -1557,5 +1561,9 @@ public final class IndexSettings {
 
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
+    }
+
+    public boolean isRemoteClusterSegRepEnabled() {
+        return this.is_ccr_follower;
     }
 }

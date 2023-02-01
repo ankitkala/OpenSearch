@@ -439,9 +439,16 @@ import org.opensearch.rest.action.search.RestGetAllPitsAction;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
+import org.opensearch.xreplication.actions.index.StartIndexTaskAction;
+import org.opensearch.xreplication.actions.index.TransportStartIndexTaskAction;
+import org.opensearch.xreplication.actions.start.RestXReplicateAction;
+import org.opensearch.xreplication.actions.start.StartXReplication;
+import org.opensearch.xreplication.actions.start.TransportXReplicateAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
+import org.opensearch.xreplication.actions.followers.StartFollowersAction;
+import org.opensearch.xreplication.actions.followers.TransportStartFollowerAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -718,6 +725,13 @@ public class ActionModule extends AbstractModule {
         actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);
         actions.register(GetDecommissionStateAction.INSTANCE, TransportGetDecommissionStateAction.class);
         actions.register(DeleteDecommissionStateAction.INSTANCE, TransportDeleteDecommissionStateAction.class);
+
+
+        // Full Cluster Replication
+        actions.register(StartXReplication.INSTANCE, TransportXReplicateAction.class);
+        actions.register(StartFollowersAction.INSTANCE, TransportStartFollowerAction.class);
+        actions.register(StartIndexTaskAction.INSTANCE, TransportStartIndexTaskAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -901,6 +915,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
         registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
         registerHandler.accept(new RestDeleteDecommissionStateAction());
+
+        // xcluster
+        registerHandler.accept(new RestXReplicateAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(
