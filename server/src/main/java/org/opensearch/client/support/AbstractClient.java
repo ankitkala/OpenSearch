@@ -1990,6 +1990,7 @@ public abstract class AbstractClient implements Client {
         public ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request) {
             return execute(ResolveIndexAction.INSTANCE, request);
         }
+
     }
 
     @Override

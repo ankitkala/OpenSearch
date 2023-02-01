@@ -39,6 +39,8 @@ import org.apache.lucene.util.SetOnce;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.indices.replication.xcluster.XReplicationFollowerService;
+import org.opensearch.indices.replication.xcluster.XReplicationLeaderService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.common.util.FeatureFlags;
@@ -237,6 +239,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;
+import static org.opensearch.common.util.FeatureFlags.X_REPLICATION;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
 /**
@@ -1064,6 +1067,24 @@ public class Node implements Closeable {
                     } else {
                         b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
                         b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
+                    }
+                    if (true || FeatureFlags.isEnabled(X_REPLICATION)) {
+                        logger.info("ankikala: starting x replication services");
+                        b.bind(XReplicationLeaderService.class)
+                            .toInstance(
+                                new XReplicationLeaderService(
+                                    threadPool,
+                                    transportService,
+                                    clusterService,
+                                    recoverySettings
+                                )
+                            );
+                        b.bind(XReplicationFollowerService.class)
+                            .toInstance(new XReplicationFollowerService(threadPool, transportService, clusterService, recoverySettings));
+                    } else {
+                        logger.info("ankikala: starting x replication services as NOOP");
+                        b.bind(XReplicationLeaderService.class).toInstance(XReplicationLeaderService.NO_OP);
+                        b.bind(XReplicationFollowerService.class).toInstance(XReplicationFollowerService.NO_OP);
                     }
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
