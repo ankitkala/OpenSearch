@@ -2145,6 +2145,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         final EngineConfig config = newEngineConfig(globalCheckpointSupplier);
+        logger.info("Ankikala: Starting index shard {}", config.getShardId());
+        logger.info("Ankikala: readonly replica? {}", config.isReadOnlyReplica());
+        logger.info("Ankikala: Engine Config {}", config);
 
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
@@ -3471,6 +3474,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isReadOnlyReplica = indexSettings.isSegRepEnabled()
             && (shardRouting.primary() == false
                 || (shardRouting.isRelocationTarget() && recoveryState.getStage() != RecoveryState.Stage.FINALIZE));
+        logger.info("Ankikala: Shard ID {}", shardId);
+        logger.info("Ankikala: isReadOnlyReplica {}", isReadOnlyReplica);
+        logger.info("Ankikala: indexSettings.isSegRepEnabled() {}", indexSettings.isSegRepEnabled());
+        logger.info("Ankikala: primary? {}", shardRouting.primary());
+        logger.info("Ankikala: isRelocationTarget {}", shardRouting.isRelocationTarget());
+        logger.info("Ankikala: recoveryState.getStage()? {}", recoveryState.getStage());
+
+
 
         return this.engineConfigFactory.newEngineConfig(
             shardId,

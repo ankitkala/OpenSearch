@@ -1060,6 +1060,7 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
                     if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
+                        logger.info("Ankikala: SegRep Enabled");
                         b.bind(SegmentReplicationTargetService.class)
                             .toInstance(
                                 new SegmentReplicationTargetService(
@@ -1073,6 +1074,7 @@ public class Node implements Closeable {
                         b.bind(SegmentReplicationSourceService.class)
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                     } else {
+                        logger.info("Ankikala: SegRep disabled");
                         b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
                         b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
                     }

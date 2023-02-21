@@ -75,6 +75,9 @@ public class FeatureFlags {
      * and false otherwise.
      */
     public static boolean isEnabled(String featureFlagName) {
+        if (featureFlagName.equals(REPLICATION_TYPE)) {
+            return true;
+        }
         if ("true".equalsIgnoreCase(System.getProperty(featureFlagName))) {
             // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
             return true;
@@ -82,7 +85,7 @@ public class FeatureFlags {
         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
 
-    public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, false, Property.NodeScope);
+    public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, true, Property.NodeScope);
 
     public static final Setting<Boolean> REMOTE_STORE_SETTING = Setting.boolSetting(REMOTE_STORE, false, Property.NodeScope);
 

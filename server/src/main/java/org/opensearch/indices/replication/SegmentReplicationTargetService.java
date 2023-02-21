@@ -190,7 +190,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param replicaShard       replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-        logger.trace(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
+        logger.info(() -> new ParameterizedMessage("Ankikala: Replica received new replication checkpoint from primary {}: [{}]", replicaShard.shardId(), receivedCheckpoint));
         // Checks if replica shard is in the correct STARTED state to process checkpoints (avoids parallel replication events taking place)
         if (replicaShard.state().equals(IndexShardState.STARTED) == true) {
             // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
@@ -204,14 +204,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             SegmentReplicationTarget ongoingReplicationTarget = onGoingReplications.getOngoingReplicationTarget(replicaShard.shardId());
             if (ongoingReplicationTarget != null) {
                 if (ongoingReplicationTarget.getCheckpoint().getPrimaryTerm() < receivedCheckpoint.getPrimaryTerm()) {
-                    logger.trace(
+                    logger.info(
                         "Cancelling ongoing replication from old primary with primary term {}",
                         ongoingReplicationTarget.getCheckpoint().getPrimaryTerm()
                     );
                     onGoingReplications.cancel(ongoingReplicationTarget.getId(), "Cancelling stuck target after new primary");
                     completedReplications.put(replicaShard.shardId(), ongoingReplicationTarget);
                 } else {
-                    logger.trace(
+                    logger.info(
                         () -> new ParameterizedMessage(
                             "Ignoring new replication checkpoint - shard is currently replicating to checkpoint {}",
                             replicaShard.getLatestReplicationCheckpoint()
@@ -225,9 +225,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
-                        logger.trace(
+                        logger.info(
                             () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                                "Ankikala: [shardId {}] [replication id {}] Replication complete, timing data: {}",
                                 replicaShard.shardId().getId(),
                                 state.getReplicationId(),
                                 state.getTimingData()
@@ -252,9 +252,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
-                        logger.trace(
+                        logger.info(
                             () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication failed, timing data: {}",
+                                "Ankikala: [shardId {}] [replication id {}] Replication failed, timing data: {}",
                                 replicaShard.shardId().getId(),
                                 state.getReplicationId(),
                                 state.getTimingData()
