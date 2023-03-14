@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.replication.xcluster;
+package org.opensearch.xreplication.services;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -83,9 +83,9 @@ public class XReplicationFollowerService implements IndexEventListener {
     }
 
 
-    private class SyncFromLeaderRequestHandler implements TransportRequestHandler<Request> {
+    private class SyncFromLeaderRequestHandler implements TransportRequestHandler<SyncFromLeaderRequest> {
         @Override
-        public void messageReceived(Request request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(SyncFromLeaderRequest request, TransportChannel channel, Task task) throws Exception {
 
         }
     }

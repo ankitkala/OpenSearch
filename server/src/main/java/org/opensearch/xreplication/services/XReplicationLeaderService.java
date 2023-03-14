@@ -6,15 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.indices.replication.xcluster;
+package org.opensearch.xreplication.services;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -22,14 +22,11 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
-import org.opensearch.transport.SniffConnectionStrategy;
 import org.opensearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.opensearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
 
@@ -71,9 +68,12 @@ public class XReplicationLeaderService implements IndexEventListener {
     }
 
     private void listenForFollowerUpdates() {
+        //TODO: FIx this.
+        /*
         clusterService.getClusterSettings().addSettingsUpdateConsumer(REMOTE_CLUSTER_SEEDS, strings -> {
             strings.stream().filter(alias -> !followerClients.containsKey(alias)).forEach(alias -> bootstrapFollower(alias));
         });
+         */
     }
 
     private void bootstrapFollower(String followerAlias) {
@@ -103,6 +103,20 @@ public class XReplicationLeaderService implements IndexEventListener {
         }
     }
 
+    public void createFollowerIndex(CreateIndexRequest request, List<String> followerAliases) {
+        for(String followerAlias: followerAliases) {
+            logger.info("[ankikala] Creating the index {} on {}", request.index(), followerAlias);
+            getRemoteClient(followerAlias).admin().indices().create(request).actionGet();
+            logger.info("[ankikala] Created the index {} on {}", request.index(), followerAlias);
+        }
+    }
+
+    private Client getRemoteClient(String followerAlias) {
+        if(!followerClients.containsKey(followerAlias)) {
+            followerClients.put(followerAlias, remoteService.getRemoteClusterClient(threadPool, followerAlias));
+        }
+        return followerClients.get(followerAlias);
+    }
 
     public static final XReplicationLeaderService NO_OP = new XReplicationLeaderService() {
         @Override

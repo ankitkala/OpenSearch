@@ -289,9 +289,9 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
 
     /**
      * Reads operations from the translog
-     * @param location
+     * @param location location
      * @return the translog operation
-     * @throws IOException
+     * @throws IOException ioexception
      */
     @Override
     public Translog.Operation readOperation(Translog.Location location) throws IOException {
@@ -300,9 +300,9 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
 
     /**
      * Adds an operation to the translog
-     * @param operation
+     * @param operation operation
      * @return the location in the translog
-     * @throws IOException
+     * @throws IOException ioexception
      */
     @Override
     public Translog.Location add(Translog.Operation operation) throws IOException {
@@ -400,8 +400,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
 
     /**
      *
-     * @param localCheckpointOfLastCommit
-     * @param flushThreshold
+     * @param localCheckpointOfLastCommit blah
+     * @param flushThreshold blah
      * @return if the translog should be flushed
      */
     public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {

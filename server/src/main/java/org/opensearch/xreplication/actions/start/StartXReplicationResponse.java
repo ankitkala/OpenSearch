@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.action.xreplication;
+package org.opensearch.xreplication.actions.start;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;
@@ -18,25 +18,31 @@ import org.opensearch.rest.RestStatus;
 import java.io.IOException;
 
 public class StartXReplicationResponse extends ActionResponse implements StatusToXContentObject {
-    public StartXReplicationResponse() {
+    private RestStatus status;
+    public StartXReplicationResponse(RestStatus status) {
+        this.status = status;
     }
 
     public StartXReplicationResponse(StreamInput in) throws IOException {
         super(in);
+        this.status = RestStatus.readFrom(in);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.startObject();
+        builder.field("status", status);
+        builder.endObject();
+        return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
+        out.writeEnum(status);
     }
 
     @Override
     public RestStatus status() {
-        return null;
+        return status;
     }
 }

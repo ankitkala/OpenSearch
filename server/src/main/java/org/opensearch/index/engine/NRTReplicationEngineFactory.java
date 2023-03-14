@@ -17,7 +17,7 @@ package org.opensearch.index.engine;
 public class NRTReplicationEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
-        if (config.isReadOnlyReplica()) {
+        if (config.isReadOnlyReplica() || config.isReadOnlyPrimary()) {
             return new NRTReplicationEngine(config);
         }
         return new InternalEngine(config);

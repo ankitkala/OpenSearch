@@ -2025,6 +2025,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed();
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            logger.info("[ankikala] Opening engine for shard {}, {}", config.getShardId(), newEngine.getClass());
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             // We set active because we are now writing operations to the engine; this way,

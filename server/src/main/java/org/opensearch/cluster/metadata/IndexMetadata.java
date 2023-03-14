@@ -406,6 +406,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
+    public static final String FOLLOWER_INDEX = "index.fcr.replicating_index";
+    public static final Setting<Boolean> FOLLOWER_INDEX_SETTING = Setting.boolSetting(
+        FOLLOWER_INDEX,
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;
 

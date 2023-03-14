@@ -532,6 +532,12 @@ public final class EngineConfig {
         return indexSettings.isSegRepEnabled() && isReadOnlyReplica;
     }
 
+
+    public boolean isReadOnlyPrimary() {
+        //TODO: verify on segrep enabled.
+        return (true || indexSettings.isSegRepEnabled()) && indexSettings.isRemoteClusterSegRepEnabled();
+    }
+
     /**
      * A supplier supplies tombstone documents which will be used in soft-update methods.
      * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.

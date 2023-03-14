@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.action.xreplication;
+package org.opensearch.xreplication.actions.start;
 
 import org.opensearch.action.ActionType;
 
