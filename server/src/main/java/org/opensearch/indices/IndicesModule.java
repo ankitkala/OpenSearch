@@ -287,6 +287,7 @@ public class IndicesModule extends AbstractModule {
         } else {
             bind(SegmentReplicationCheckpointPublisher.class).toInstance(SegmentReplicationCheckpointPublisher.EMPTY);
         }
+        bind(XReplicationNotificationPublisher.class).asEagerSingleton();
     }
 
     /**
