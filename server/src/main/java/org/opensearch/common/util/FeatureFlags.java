@@ -24,6 +24,12 @@ public class FeatureFlags {
     public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
 
     /**
+     * Gates the functionality of full cluster replication.
+     * Once the feature is ready for production release, this feature flag can be removed.
+     */
+    public static final String X_REPLICATION = "opensearch.experimental.feature.full_cluster_replication.enabled";
+
+    /**
      * Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
      * Once the feature is ready for production release, this feature flag can be removed.
      */

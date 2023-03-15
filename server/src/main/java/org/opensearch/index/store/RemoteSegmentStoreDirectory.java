@@ -326,8 +326,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * @param primaryTerm primary term to be used in the name of metadata file
      * @param generation commit generation
      * @throws IOException in case of I/O error while uploading the metadata file
+     * @return
      */
-    public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
+    public String uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
         throws IOException {
         synchronized (this) {
             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.metadataFileUniqueSuffix);
@@ -345,6 +346,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
             storeDirectory.deleteFile(metadataFilename);
+            return metadataFilename;
         }
     }
 

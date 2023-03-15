@@ -162,6 +162,7 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
+import org.opensearch.indices.replication.RemoteStoreSegmentUploadNotificationPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
@@ -305,7 +306,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
-
+    private final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher;
     private final Store remoteStore;
 
     public IndexShard(
@@ -330,7 +331,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
+        @Nullable final Store remoteStore,
+        final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -376,6 +378,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
+        this.remoteSegmentNotificationPublisher = remoteSegmentNotificationPublisher;
         this.replicationTracker = new ReplicationTracker(
             shardId,
             aId,
@@ -3314,8 +3317,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            internalRefreshListener.add(new RemoteStoreRefreshListener(this));
+            internalRefreshListener.add(new RemoteStoreRefreshListener(this, this.remoteSegmentNotificationPublisher));
         }
+
         if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
@@ -3345,6 +3349,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             tombstoneDocSupplier(),
             indexSettings.isSegRepEnabled() && shardRouting.primary() == false
         );
+    }
+
+    private boolean isXReplicationEnabled() {
+        return true;
     }
 
     private boolean isRemoteStoreEnabled() {

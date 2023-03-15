@@ -76,6 +76,7 @@ import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.xcluster.XReplicationNotificationPublisher;
 import org.opensearch.indices.store.IndicesStore;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.opensearch.plugins.MapperPlugin;
@@ -287,6 +288,7 @@ public class IndicesModule extends AbstractModule {
         } else {
             bind(SegmentReplicationCheckpointPublisher.class).toInstance(SegmentReplicationCheckpointPublisher.EMPTY);
         }
+        bind(XReplicationNotificationPublisher.class).asEagerSingleton();
     }
 
     /**

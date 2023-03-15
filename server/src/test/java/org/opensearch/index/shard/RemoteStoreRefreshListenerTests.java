@@ -44,7 +44,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         indexDocs(1, numberOfDocs);
         indexShard.refresh("test");
 
-        remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard);
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, this.remoteSegmentNotificationPublisher);
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {

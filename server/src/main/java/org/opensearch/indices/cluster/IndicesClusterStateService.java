@@ -84,6 +84,7 @@ import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.RemoteStoreSegmentUploadNotificationPublisher;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
@@ -151,27 +152,29 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final SegmentReplicationTargetService segmentReplicationTargetService;
 
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
+    private final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher;
 
     @Inject
     public IndicesClusterStateService(
-        final Settings settings,
-        final IndicesService indicesService,
-        final ClusterService clusterService,
-        final ThreadPool threadPool,
-        final PeerRecoveryTargetService recoveryTargetService,
-        final SegmentReplicationTargetService segmentReplicationTargetService,
-        final SegmentReplicationSourceService segmentReplicationSourceService,
-        final ShardStateAction shardStateAction,
-        final NodeMappingRefreshAction nodeMappingRefreshAction,
-        final RepositoriesService repositoriesService,
-        final SearchService searchService,
-        final PeerRecoverySourceService peerRecoverySourceService,
-        final SnapshotShardsService snapshotShardsService,
-        final PrimaryReplicaSyncer primaryReplicaSyncer,
-        final GlobalCheckpointSyncAction globalCheckpointSyncAction,
-        final RetentionLeaseSyncer retentionLeaseSyncer,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher
-    ) {
+            final Settings settings,
+            final IndicesService indicesService,
+            final ClusterService clusterService,
+            final ThreadPool threadPool,
+            final PeerRecoveryTargetService recoveryTargetService,
+            final SegmentReplicationTargetService segmentReplicationTargetService,
+            final SegmentReplicationSourceService segmentReplicationSourceService,
+            final ShardStateAction shardStateAction,
+            final NodeMappingRefreshAction nodeMappingRefreshAction,
+            final RepositoriesService repositoriesService,
+            final SearchService searchService,
+            final PeerRecoverySourceService peerRecoverySourceService,
+            final SnapshotShardsService snapshotShardsService,
+            final PrimaryReplicaSyncer primaryReplicaSyncer,
+            final GlobalCheckpointSyncAction globalCheckpointSyncAction,
+            final RetentionLeaseSyncer retentionLeaseSyncer,
+            final SegmentReplicationCheckpointPublisher checkpointPublisher,
+            final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
+            ) {
         this(
             settings,
             indicesService,
@@ -189,7 +192,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             snapshotShardsService,
             primaryReplicaSyncer,
             globalCheckpointSyncAction::updateGlobalCheckpointForShard,
-            retentionLeaseSyncer
+            retentionLeaseSyncer,
+            remoteSegmentNotificationPublisher
         );
     }
 
@@ -211,7 +215,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final Consumer<ShardId> globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
@@ -237,6 +242,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
+        this.remoteSegmentNotificationPublisher = remoteSegmentNotificationPublisher;
     }
 
     @Override
@@ -666,7 +672,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 nodes.getLocalNode(),
-                sourceNode
+                sourceNode,
+                remoteSegmentNotificationPublisher
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -1095,7 +1102,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             Consumer<ShardId> globalCheckpointSyncer,
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
-            @Nullable DiscoveryNode sourceNode
+            @Nullable DiscoveryNode sourceNode,
+            @Nullable RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
         ) throws IOException;
 
         /**

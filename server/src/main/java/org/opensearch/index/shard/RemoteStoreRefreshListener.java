@@ -22,6 +22,7 @@ import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.indices.replication.RemoteStoreSegmentUploadNotificationPublisher;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,8 +52,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
+    private final RemoteStoreSegmentUploadNotificationPublisher notificationPublisher;
 
-    public RemoteStoreRefreshListener(IndexShard indexShard) {
+    public RemoteStoreRefreshListener(IndexShard indexShard, RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
@@ -66,6 +68,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
             }
         }
+        notificationPublisher = remoteSegmentNotificationPublisher;
     }
 
     @Override
@@ -113,7 +116,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                                 boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                                 if (uploadStatus) {
-                                    remoteDirectory.uploadMetadata(
+                                    String metadataFileName = remoteDirectory.uploadMetadata(
                                         refreshedLocalFiles,
                                         storeDirectory,
                                         indexShard.getOperationPrimaryTerm(),
@@ -124,6 +127,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         .filter(file -> !refreshedLocalFiles.contains(file))
                                         .collect(Collectors.toSet())
                                         .forEach(localSegmentChecksumMap::remove);
+                                    notificationPublisher.notifySegmentUpload(indexShard, metadataFileName);
                                 }
                             }
                         } catch (EngineException e) {
