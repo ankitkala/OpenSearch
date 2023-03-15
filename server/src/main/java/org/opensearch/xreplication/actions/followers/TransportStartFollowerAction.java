@@ -23,16 +23,14 @@ import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 import org.opensearch.xreplication.task.follower.FollowerReplicationExecutor;
 import org.opensearch.xreplication.task.follower.FollowerReplicationParams;
-import org.opensearch.xreplication.utils.ReplicationHelper;
 
 
 import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
-
+import java.util.Set;
 
 
 public class TransportStartFollowerAction extends HandledTransportAction<StartFollowersRequest, StartFollowerResponse> {
+    private final TransportService transportService;
     protected Logger logger = LogManager.getLogger(getClass());
     private PersistentTasksService persistentTasksService;
     private ClusterService clusterService;
@@ -42,6 +40,7 @@ public class TransportStartFollowerAction extends HandledTransportAction<StartFo
         super(StartFollowersAction.NAME, transportService, actionFilters, in -> new StartFollowersRequest(in), executor);
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
+        this.transportService = transportService;
     }
 
     @Override
@@ -49,10 +48,11 @@ public class TransportStartFollowerAction extends HandledTransportAction<StartFo
         // Update data in cluster state?
         // start bootstrapping for each follower?
         // logger
-        List<String> remoteClusterSeeds = ReplicationHelper.getAllClusterAliases(clusterService.getSettings());
+        Set<String> remoteClusterSeeds = transportService.getRemoteClusterService().getRegisteredRemoteClusterNames();
+        logger.info("aliases: {}", remoteClusterSeeds);
         //TODO: Make it work for multiple followers.
         String followerAlias = request.getFollowerAliases()[0];
-        if(remoteClusterSeeds.contains(remoteClusterSeeds) || true) {
+        if(remoteClusterSeeds.contains(remoteClusterSeeds)) {
             FollowerReplicationParams params = new FollowerReplicationParams(followerAlias);
             logger.info("[ankikala] Executing the follower start {}", Arrays.toString(request.getFollowerAliases()));
             persistentTasksService.sendStartRequest("follower:" + followerAlias, FollowerReplicationExecutor.NAME, params, new ActionListener<PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams>>() {

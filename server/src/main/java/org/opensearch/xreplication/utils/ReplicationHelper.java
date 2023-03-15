@@ -22,8 +22,15 @@ public class ReplicationHelper {
     public static List<String> getAllClusterAliases(Settings settings) {
         List<String> aliases = REMOTE_CLUSTER_SEEDS.getAllConcreteSettings(settings).map(s -> s.getKey()).collect(Collectors.toList());
         logger.info("[ankikala]: New Follower aliases {}", aliases.toString());
+        getAllClusterAliases3(settings);
         return aliases;
     }
+
+    private static void getAllClusterAliases3(Settings settings) {
+        logger.info("[ankikala] manual stream", settings.keySet().stream().filter(s -> s.startsWith("cluster.remote")).collect(Collectors.toList()));
+        logger.info("settings.keySet(): {}", settings.keySet().toString());
+    }
+
     public static List<String> getAllClusterAliases2(Settings settings) {
         List<String> aliases = REMOTE_CLUSTER_SEEDS.getNamespaces(settings).stream().collect(Collectors.toList());
         logger.info("[ankikala]: Follower aliases {}", aliases.toString());

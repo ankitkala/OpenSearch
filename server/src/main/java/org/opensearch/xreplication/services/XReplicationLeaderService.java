@@ -87,10 +87,15 @@ public class XReplicationLeaderService implements IndexEventListener {
     }
 
     private void initializeFollowerClients() {
+        remoteService.getRegisteredRemoteClusterNames().stream()
+            .filter(alias -> !followerClients.containsKey(alias))
+            .map(alias -> followerClients.put(alias, remoteService.getRemoteClusterClient(threadPool, alias)));
+        /*
         REMOTE_CLUSTER_SEEDS.getNamespaces(clusterService.getSettings()).stream()
             .filter(alias -> !followerClients.containsKey(alias))
             .map(alias ->
                 followerClients.put(alias, remoteService.getRemoteClusterClient(threadPool, alias)));
+         */
     }
 
 
