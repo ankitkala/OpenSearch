@@ -307,6 +307,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
 
     private final Store remoteStore;
+    private final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -330,7 +331,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
+        @Nullable final Store remoteStore,
+        @Nullable RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -376,6 +378,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
+        this.remoteSegmentNotificationPublisher = remoteSegmentNotificationPublisher;
         this.replicationTracker = new ReplicationTracker(
             shardId,
             aId,
@@ -3314,7 +3317,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            internalRefreshListener.add(new RemoteStoreRefreshListener(this));
+            internalRefreshListener.add(new RemoteStoreRefreshListener(this, remoteSegmentNotificationPublisher));
         }
         if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));

@@ -20,6 +20,7 @@ public class RemoteStoreSegmentUploadNotificationPublisher {
     }
 
     public void notifySegmentUpload(IndexShard indexShard, String refreshedLocalFiles) {
+        if (xReplicatePublisher == null) return;
         // Invoke checkpoint publisher/follower notify
         xReplicatePublisher.publish(indexShard, refreshedLocalFiles);
     }

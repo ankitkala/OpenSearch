@@ -50,14 +50,16 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
+    private final RemoteStoreSegmentUploadNotificationPublisher notificationPublisher;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
-    public RemoteStoreRefreshListener(IndexShard indexShard) {
+    public RemoteStoreRefreshListener(IndexShard indexShard, RemoteStoreSegmentUploadNotificationPublisher notificationPublisher) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
         this.primaryTerm = indexShard.getOperationPrimaryTerm();
+        this.notificationPublisher = notificationPublisher;
         localSegmentChecksumMap = new HashMap<>();
         if (indexShard.shardRouting.primary()) {
             try {
@@ -113,7 +115,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                                 boolean uploadStatus = uploadNewSegments(refreshedLocalFiles);
                                 if (uploadStatus) {
-                                    remoteDirectory.uploadMetadata(
+                                    String metadataFileName = remoteDirectory.uploadMetadata(
                                         refreshedLocalFiles,
                                         storeDirectory,
                                         indexShard.getOperationPrimaryTerm(),
@@ -124,6 +126,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         .filter(file -> !refreshedLocalFiles.contains(file))
                                         .collect(Collectors.toSet())
                                         .forEach(localSegmentChecksumMap::remove);
+                                    notificationPublisher.notifySegmentUpload(indexShard, metadataFileName);
                                 }
                             }
                         } catch (EngineException e) {

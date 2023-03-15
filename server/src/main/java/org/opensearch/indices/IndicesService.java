@@ -127,13 +127,7 @@ import org.opensearch.index.search.stats.SearchStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SeqNoStats;
-import org.opensearch.index.shard.IllegalIndexShardStateException;
-import org.opensearch.index.shard.IndexEventListener;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardState;
-import org.opensearch.index.shard.IndexingOperationListener;
-import org.opensearch.index.shard.IndexingStats;
-import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.*;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -974,14 +968,15 @@ public class IndicesService extends AbstractLifecycleComponent
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
-        final DiscoveryNode sourceNode
+        final DiscoveryNode sourceNode,
+        final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher, remoteSegmentNotificationPublisher);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS

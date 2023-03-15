@@ -12,7 +12,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.TransportReplicationAction;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -31,7 +30,7 @@ import java.io.IOException;
 public class NotifySecondariesAction extends TransportReplicationAction<
     NotifySecondariesRequest,
     NotifySecondariesRequest,
-    NotifySecondariesResponse> {
+    ReplicationResponse> {
 
     private final XReplicationLeaderService leaderService;
     @Inject
@@ -43,34 +42,31 @@ public class NotifySecondariesAction extends TransportReplicationAction<
                                    ThreadPool threadPool,
                                    ShardStateAction shardStateAction,
                                    ActionFilters actionFilters,
-                                   XReplicationLeaderService leaderService,
-                                   Writeable.Reader<NotifySecondariesRequest> notifySecondariesRequestReader,
-                                   Writeable.Reader<NotifySecondariesRequest> notifySecondariesRequestReader2,
-                                   String executor) {
+                                   XReplicationLeaderService leaderService) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, notifySecondariesRequestReader, notifySecondariesRequestReader2, executor);
+            actionFilters, NotifySecondariesRequest::new, NotifySecondariesRequest::new, ThreadPool.Names.GENERIC);
         // initialize primary service.
         this.leaderService = leaderService;
     }
 
     @Override
-    protected void doExecute(Task task, NotifySecondariesRequest request, ActionListener<NotifySecondariesResponse> listener) {
+    protected void doExecute(Task task, NotifySecondariesRequest request, ActionListener<ReplicationResponse> listener) {
         assert false : "use NotifySecondariesAction#publish";
     }
 
     @Override
-    protected NotifySecondariesResponse newResponseInstance(StreamInput in) throws IOException {
-        return new NotifySecondariesResponse(in);
+    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
+        return new ReplicationResponse(in);
     }
 
     @Override
-    protected void shardOperationOnPrimary(NotifySecondariesRequest shardRequest, IndexShard primary, ActionListener<PrimaryResult<NotifySecondariesRequest, NotifySecondariesResponse>> listener) {
-        // Do stuff here.
+    protected void shardOperationOnPrimary(NotifySecondariesRequest shardRequest, IndexShard primary, ActionListener<PrimaryResult<NotifySecondariesRequest, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> new PrimaryResult<>(shardRequest, new ReplicationResponse()));
     }
 
     @Override
     protected void shardOperationOnReplica(NotifySecondariesRequest shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> new PrimaryResult<>(shardRequest, new NotifySecondariesResponse()));
+        ActionListener.completeWith(listener, () -> new ReplicaResult());
     }
 
     public void publish(IndexShard indexShard, String refreshedLocalFiles) {

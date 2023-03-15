@@ -573,7 +573,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 retentionLeaseSyncer,
                 breakerService,
                 checkpointPublisher,
-                remoteStore
+                remoteStore,
+                new RemoteStoreSegmentUploadNotificationPublisher(null)
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
