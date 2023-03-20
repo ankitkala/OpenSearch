@@ -9,19 +9,21 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.common.inject.Inject;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.xreplication.actions.notifysecondary.NotifySecondariesAction;
 
 
 public class RemoteStoreSegmentUploadNotificationPublisher {
     private final NotifySecondariesAction xReplicatePublisher;
+    private final SegmentReplicationCheckpointPublisher segRepPublisher;
     @Inject
-    public RemoteStoreSegmentUploadNotificationPublisher(NotifySecondariesAction xReplicatePublisher) {
+    public RemoteStoreSegmentUploadNotificationPublisher(NotifySecondariesAction xReplicatePublisher, SegmentReplicationCheckpointPublisher segRepPublisher) {
         this.xReplicatePublisher = xReplicatePublisher;
+        this.segRepPublisher = segRepPublisher;
     }
 
     public void notifySegmentUpload(IndexShard indexShard, String refreshedLocalFiles) {
-        if (xReplicatePublisher == null) return;
-        // Invoke checkpoint publisher/follower notify
-        xReplicatePublisher.publish(indexShard, refreshedLocalFiles);
+        if (xReplicatePublisher != null) xReplicatePublisher.publish(indexShard, refreshedLocalFiles);
+        if (segRepPublisher != null) segRepPublisher.publish(indexShard, indexShard.getLatestReplicationCheckpoint());
     }
 }

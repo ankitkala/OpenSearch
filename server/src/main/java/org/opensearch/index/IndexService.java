@@ -468,6 +468,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     this.indexSettings,
                     path
                 );
+                // Add leader's remote store here for CCR.
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 

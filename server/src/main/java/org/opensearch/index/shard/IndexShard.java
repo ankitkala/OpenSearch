@@ -1809,6 +1809,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void preRecovery() {
+        logger.info("[ankikala] preRecovery");
         final IndexShardState currentState = this.state; // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(shardId, currentState);
@@ -1818,6 +1819,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+        logger.info("[ankikala] postRecovery");
         synchronized (postRecoveryMutex) {
             // we need to refresh again to expose all operations that were index until now. Otherwise
             // we may not expose operations that were indexed with a refresh listener that was immediately
@@ -1841,6 +1843,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * called before starting to copy index files over
      */
     public void prepareForIndexRecovery() {
+        logger.info("[ankikala] Preparing for index recovery");
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -3080,6 +3083,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertReplicationTarget();
         final long localCheckpoint = getLocalCheckpoint();
         if (globalCheckpoint > localCheckpoint) {
+            logger.info("[ankikala] state: {}", state().toString());
             /*
              * This can happen during recovery when the shard has started its engine but recovery is not finalized and is receiving global
              * checkpoint updates. However, since this shard is not yet contributing to calculating the global checkpoint, it can be the
@@ -3501,8 +3505,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (isRemoteStoreEnabled()) {
             internalRefreshListener.add(new RemoteStoreRefreshListener(this, remoteSegmentNotificationPublisher));
         }
-        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+        // TODO: Disable segrep refresh checkpoint publisher with remote store.
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary() && !indexSettings.isRemoteClusterSegRepEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
+            logger.info("[ankikala] Adding segrep refresh listener");
+        }
+        if(indexSettings.isRemoteClusterSegRepEnabled()) {
+            logger.info("[ankikala] Hopefully skipping the segrep refresh listener");
         }
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and

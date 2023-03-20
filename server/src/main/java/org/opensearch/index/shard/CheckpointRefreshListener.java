@@ -40,7 +40,9 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        if (didRefresh && shard.state() == IndexShardState.STARTED && shard.getReplicationTracker().isPrimaryMode()) {
+        if (shard.indexSettings.isSegRepWithRemoteStoreEnabled()) logger.info("[ankikala] skipping the refresh notification in case of segrep with remote store.");
+        // TODO: disable refresh if replica is fetching from remote store(instead of isRemoteClusterSegRepEnabled).
+        if (didRefresh && shard.state() == IndexShardState.STARTED && shard.getReplicationTracker().isPrimaryMode() && shard.indexSettings.isSegRepWithRemoteStoreEnabled()) {
             publisher.publish(shard, shard.getLatestReplicationCheckpoint());
         }
     }

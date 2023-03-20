@@ -145,6 +145,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      * @param listener {@link ActionListener} listener.
      */
     public void startReplication(ActionListener<Void> listener) {
+        logger.info("[ankikala] Target: Start Replication");
         cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
             // This method only executes when cancellation is triggered by this node and caught by a call to checkForCancel,
             // SegmentReplicationSource does not share CancellableThreads.
@@ -162,11 +163,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         logger.trace("[shardId {}] Replica starting replication [id {}]", shardId().getId(), getId());
         // Get list of files to copy from this checkpoint.
         state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
+
+        logger.info("[ankikala] Target: Get checkpoint metadata");
         source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
 
         checkpointInfoListener.whenComplete(checkpointInfo -> getFiles(checkpointInfo, getFilesListener), listener::onFailure);
         getFilesListener.whenComplete(
-            response -> finalizeReplication(checkpointInfoListener.result(), finalizeListener),
+            response -> finalizeReplication(checkpointInfoListener.result(), source, finalizeListener),
             listener::onFailure
         );
         finalizeListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
@@ -175,41 +178,50 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
         throws IOException {
         cancellableThreads.checkForCancel();
+        Store.RecoveryDiff diff = null;
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
-        logger.trace("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff);
-        /*
-         * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
-         * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
-         * IllegalStateException to fail the shard
-         */
-        if (diff.different.isEmpty() == false) {
-            IllegalStateException illegalStateException = new IllegalStateException(
-                new ParameterizedMessage(
-                    "Shard {} has local copies of segments that differ from the primary {}",
+        if (!RemoteStoreReplicationSource.class.equals(source.getClass())) {
+            diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
+            logger.trace("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff);
+            logger.info("[ankikala] Target: Getting files");
+            /*
+             * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
+             * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
+             * IllegalStateException to fail the shard
+             */
+            if (diff.different.isEmpty() == false) {
+                IllegalStateException illegalStateException = new IllegalStateException(
+                    new ParameterizedMessage(
+                        "Shard {} has local copies of segments that differ from the primary {}",
+                        indexShard.shardId(),
+                        diff.different
+                    ).getFormattedMessage()
+                );
+                ReplicationFailedException rfe = new ReplicationFailedException(
                     indexShard.shardId(),
-                    diff.different
-                ).getFormattedMessage()
-            );
-            ReplicationFailedException rfe = new ReplicationFailedException(
-                indexShard.shardId(),
-                "different segment files",
-                illegalStateException
-            );
-            fail(rfe, true);
-            throw rfe;
-        }
+                    "different segment files",
+                    illegalStateException
+                );
+                fail(rfe, true);
+                throw rfe;
+            }
 
-        for (StoreFileMetadata file : diff.missing) {
-            state.getIndex().addFileDetail(file.name(), file.length(), false);
+            for (StoreFileMetadata file : diff.missing) {
+                state.getIndex().addFileDetail(file.name(), file.length(), false);
+            }
         }
         // always send a req even if not fetching files so the primary can clear the copyState for this shard.
         state.setStage(SegmentReplicationState.Stage.GET_FILES);
         cancellableThreads.checkForCancel();
-        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
+        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), null != diff ? diff.missing: null, indexShard, getFilesListener);
     }
 
-    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
+    private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, SegmentReplicationSource source, ActionListener<Void> listener) {
+        if (RemoteStoreReplicationSource.class.equals(source.getClass())) {
+            logger.info("[ankikala] Skipping finalize replication event");
+            listener.onResponse(null);
+            return;
+        }
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);

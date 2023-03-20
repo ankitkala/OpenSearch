@@ -1566,4 +1566,10 @@ public final class IndexSettings {
     public boolean isRemoteClusterSegRepEnabled() {
         return this.is_ccr_follower;
     }
+
+    public boolean isSegRepWithRemoteStoreEnabled() {
+        // TODO: Fix this
+        return true || isRemoteClusterSegRepEnabled();
+    }
 }
+

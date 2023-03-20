@@ -530,7 +530,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     public ShardRouting startShard(Logger logger, ShardRouting initializingShard, RoutingChangesObserver routingChangesObserver) {
         ensureMutable();
         ShardRouting startedShard = started(initializingShard);
-        logger.trace("{} marked shard as started (routing: {})", initializingShard.shardId(), initializingShard);
+        logger.info("[ankikala] {} marked shard as started (routing: {})", initializingShard.shardId(), initializingShard);
         routingChangesObserver.shardStarted(initializingShard, startedShard);
 
         if (initializingShard.relocatingNodeId() != null) {

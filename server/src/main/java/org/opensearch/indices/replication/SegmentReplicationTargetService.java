@@ -190,7 +190,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      * @param replicaShard       replica shard on which checkpoint is received
      */
     public synchronized void onNewCheckpoint(final ReplicationCheckpoint receivedCheckpoint, final IndexShard replicaShard) {
-        logger.trace(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
+        logger.info(() -> new ParameterizedMessage("Replica received new replication checkpoint from primary [{}]", receivedCheckpoint));
         // Checks if replica shard is in the correct STARTED state to process checkpoints (avoids parallel replication events taking place)
         if (replicaShard.state().equals(IndexShardState.STARTED) == true) {
             // Checks if received checkpoint is already present and ahead then it replaces old received checkpoint
@@ -221,10 +221,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 }
             }
             final Thread thread = Thread.currentThread();
+            logger.info("[ankikala] Checking shouldProcessCheckpoint");
             if (replicaShard.shouldProcessCheckpoint(receivedCheckpoint)) {
+                logger.info("[ankikala] Checking shouldProcessCheckpoint");
                 startReplication(receivedCheckpoint, replicaShard, new SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
+                        logger.info("[ankikala] Replication done");
                         logger.trace(
                             () -> new ParameterizedMessage(
                                 "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
@@ -253,6 +256,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
+                        logger.info("[ankikala] Replication failed {}", e);
                         logger.trace(
                             () -> new ParameterizedMessage(
                                 "[shardId {}] [replication id {}] Replication failed, timing data: {}",

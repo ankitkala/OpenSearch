@@ -313,7 +313,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         boolean verifyTranslog
     ) {
         final StartRecoveryRequest request;
-        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+        logger.info("[ankikala] {} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
         Store.MetadataSnapshot metadataSnapshot;
         try {

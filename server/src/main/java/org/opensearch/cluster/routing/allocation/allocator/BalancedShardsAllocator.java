@@ -162,7 +162,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     /**
      * When primary shards balance is desired, enable primary shard balancing constraints
-     * @param preferPrimaryShardBalance
+     * @param preferPrimaryShardBalance preferPrimaryShardBalance
      */
     private void setPreferPrimaryShardBalance(boolean preferPrimaryShardBalance) {
         this.preferPrimaryShardBalance = preferPrimaryShardBalance;
