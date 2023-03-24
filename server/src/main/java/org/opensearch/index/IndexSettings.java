@@ -1569,7 +1569,7 @@ public final class IndexSettings {
 
     public boolean isSegRepWithRemoteStoreEnabled() {
         // TODO: Fix this
-        return true || isRemoteClusterSegRepEnabled();
+        return isRemoteStoreEnabled();
     }
 }
 

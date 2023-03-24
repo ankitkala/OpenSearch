@@ -244,6 +244,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
+                    logger.info("[ankikala] peer precovery prepared");
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
                     final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog) == false;
@@ -257,11 +258,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         startingSeqNo,
                         verifyTranslog
                     );
+                    logger.info("[ankikala] peer recovery request {}", startRequest);
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
                 } catch (final Exception e) {
                     // this will be logged as warning later on...
-                    logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
+                    logger.error("[ankikala] unexpected error while preparing shard for peer recovery, failing recovery", e);
                     onGoingRecoveries.fail(
                         recoveryId,
                         new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e),
@@ -269,7 +271,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     );
                     return;
                 }
-                logger.trace("{} starting recovery from {}", startRequest.shardId(), startRequest.sourceNode());
+                logger.info("[ankikala] {} starting recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             } else {
                 startRequest = preExistingRequest;
                 requestToSend = new ReestablishRecoveryRequest(recoveryId, startRequest.shardId(), startRequest.targetAllocationId());
@@ -399,7 +401,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 if (listener == null) {
                     return;
                 }
-
+                logger.info("[ankikala] finalize recovery");
                 recoveryTarget.finalizeRecovery(request.globalCheckpoint(), request.trimAboveSeqNo(), listener);
             }
         }
@@ -508,6 +510,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel, Task task) throws Exception {
+            logger.info("[ankikala] FilesInfoRequestHandler");
             try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.getSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryTarget recoveryTarget = recoveryRef.get();
                 final ActionListener<Void> listener = recoveryTarget.createOrFinishListener(channel, Actions.FILES_INFO, request);

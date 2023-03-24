@@ -23,6 +23,7 @@ import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.indices.replication.SegmentReplicationSourceService.Actions.GET_CHECKPOINT_INFO;
@@ -65,6 +66,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
     @Override
     public void getSegmentFiles(long replicationId, ReplicationCheckpoint checkpoint, List<StoreFileMetadata> filesToFetch, IndexShard indexShard, ActionListener<GetSegmentFilesResponse> listener) {
+        /*
         try {
             logger.info("[ankikala] Source: syncing segments from remote store");
             indexShard.syncSegmentsFromRemoteSegmentStore(false);
@@ -72,6 +74,8 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             logger.error("[ankikala] Failed to sync segments {}", e);
             e.printStackTrace();
         }
+        */
+        listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
     }
 
     @Override

@@ -89,6 +89,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected void onDone() {
+        logger.info("[ankikala] SegRep event onDone");
         state.setStage(SegmentReplicationState.Stage.DONE);
     }
 
@@ -155,24 +156,54 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             throw executionCancelledException;
         });
         state.setStage(SegmentReplicationState.Stage.REPLICATING);
-        final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
-        final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
-        final StepListener<Void> finalizeListener = new StepListener<>();
 
-        cancellableThreads.checkForCancel();
-        logger.trace("[shardId {}] Replica starting replication [id {}]", shardId().getId(), getId());
-        // Get list of files to copy from this checkpoint.
-        state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
+        if (indexShard.indexSettings().isSegRepWithRemoteStoreEnabled()) {
+            try {
+                logger.info("[ankikala] separate logic for segrep with remote store.");
+                state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
+                state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
+                state.setStage(SegmentReplicationState.Stage.GET_FILES);
 
-        logger.info("[ankikala] Target: Get checkpoint metadata");
-        source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
+                // Download segment files.
+                try {
+                    indexShard.syncSegmentsFromRemoteSegmentStore(false);
+                } catch (IOException e) {
+                    logger.info("[ankikala] unable to sync segments");
+                    e.printStackTrace();
+                }
 
-        checkpointInfoListener.whenComplete(checkpointInfo -> getFiles(checkpointInfo, getFilesListener), listener::onFailure);
-        getFilesListener.whenComplete(
-            response -> finalizeReplication(checkpointInfoListener.result(), source, finalizeListener),
-            listener::onFailure
-        );
-        finalizeListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+                state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+
+                // Something on finalize.
+                //indexShard.finalizeReplication(infos);
+                //store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
+                logger.info("[ankikala] Done");
+                listener.onResponse(null);
+            } catch (Exception e) {
+                logger.info("[ankikala] error in syncing {}", e);
+                listener.onFailure(e);
+            }
+
+        } else {
+            final StepListener<CheckpointInfoResponse> checkpointInfoListener = new StepListener<>();
+            final StepListener<GetSegmentFilesResponse> getFilesListener = new StepListener<>();
+            final StepListener<Void> finalizeListener = new StepListener<>();
+
+            cancellableThreads.checkForCancel();
+            logger.trace("[shardId {}] Replica starting replication [id {}]", shardId().getId(), getId());
+            // Get list of files to copy from this checkpoint.
+            state.setStage(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO);
+
+            logger.info("[ankikala] Target: Get checkpoint metadata");
+            source.getCheckpointMetadata(getId(), checkpoint, checkpointInfoListener);
+
+            checkpointInfoListener.whenComplete(checkpointInfo -> getFiles(checkpointInfo, getFilesListener), listener::onFailure);
+            getFilesListener.whenComplete(
+                response -> finalizeReplication(checkpointInfoListener.result(), source, finalizeListener),
+                listener::onFailure
+            );
+            finalizeListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
+        }
     }
 
     private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
@@ -219,7 +250,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, SegmentReplicationSource source, ActionListener<Void> listener) {
         if (RemoteStoreReplicationSource.class.equals(source.getClass())) {
             logger.info("[ankikala] Skipping finalize replication event");
-            listener.onResponse(null);
+            //listener.onResponse(null);
+            ActionListener.completeWith(listener, () -> null);
             return;
         }
         ActionListener.completeWith(listener, () -> {

@@ -695,7 +695,8 @@ public abstract class TransportReplicationAction<
 
         try {
             new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
+            logger.info("[ankikala] handleReplicaRequest failed for {} {}", transportReplicaAction, e);
             listener.onFailure(e);
         }
     }
@@ -846,6 +847,7 @@ public abstract class TransportReplicationAction<
                     actualAllocationId
                 );
             }
+            logger.info("[ankikala] acquiring replica permit {}", actionName);
             acquireReplicaOperationPermit(
                 replica,
                 replicaRequest.getRequest(),

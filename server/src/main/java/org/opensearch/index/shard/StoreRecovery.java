@@ -440,6 +440,7 @@ final class StoreRecovery {
     }
 
     private void recoverFromRemoteStore(IndexShard indexShard, Repository repository) throws IndexShardRecoveryException {
+        logger.info("[ankikala] recovery from remote store");
         final Store remoteStore = indexShard.remoteStore();
         if (remoteStore == null) {
             throw new IndexShardRecoveryException(
@@ -497,6 +498,7 @@ final class StoreRecovery {
      * Recovers the state of the shard from the store.
      */
     private void internalRecoverFromStore(IndexShard indexShard) throws IndexShardRecoveryException {
+        logger.info("[ankikala] recovery from shard store");
         indexShard.preRecovery();
         final RecoveryState recoveryState = indexShard.recoveryState();
         final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;

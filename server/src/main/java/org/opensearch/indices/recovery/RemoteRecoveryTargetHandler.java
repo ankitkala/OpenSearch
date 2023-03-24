@@ -195,6 +195,7 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
      */
     @Override
     public void forceSegmentFileSync() {
+        logger.info("[ankikala] forcing segment sync");
         final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
         transportService.submitRequest(
             targetNode,

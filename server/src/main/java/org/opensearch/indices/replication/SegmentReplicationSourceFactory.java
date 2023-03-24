@@ -38,7 +38,7 @@ public class SegmentReplicationSourceFactory {
     }
 
     public SegmentReplicationSource get(IndexShard shard) {
-        if(shard.indexSettings().isSegRepWithRemoteStoreEnabled()) {
+        if(false && shard.indexSettings().isSegRepWithRemoteStoreEnabled()) {
             // TODO: Cleanup unused args.
             return new RemoteStoreReplicationSource(shard.recoveryState().getTargetNode(),
                 shard.routingEntry().allocationId().getId(),

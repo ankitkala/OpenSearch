@@ -74,18 +74,21 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
 
             assert Transports.assertNotTransportThread(this + "[phase1]");
             phase1(wrappedSafeCommit.get(), startingSeqNo, () -> 0, sendFileStep, true);
+            logger.info("[ankikala] phase 1 complete");
         } catch (final Exception e) {
             throw new RecoveryEngineException(shard.shardId(), 1, "sendFileStep failed", e);
         }
         assert startingSeqNo >= 0 : "startingSeqNo must be non negative. got: " + startingSeqNo;
 
         sendFileStep.whenComplete(r -> {
+            logger.info("[ankikala] sendFileStep complete");
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
             prepareTargetForTranslog(0, prepareEngineStep);
         }, onFailure);
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
+            logger.info("[ankikala] prepareEngineStep complete");
             assert Transports.assertNotTransportThread(this + "[phase2]");
             RunUnderPrimaryPermit.run(
                 () -> shard.initiateTracking(request.targetAllocationId()),

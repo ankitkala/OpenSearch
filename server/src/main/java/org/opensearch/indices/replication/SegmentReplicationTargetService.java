@@ -367,6 +367,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             completedReplications.put(target.shardId(), target);
                         }
                     } else {
+                        logger.error("[ankikala] SegRep failed {}", e);
                         onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
                     }
                 }
@@ -399,12 +400,14 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 return;
             }
+            logger.info("segrep force sync start");
             startReplication(
                 ReplicationCheckpoint.empty(request.getShardId()),
                 indexShard,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override
                     public void onReplicationDone(SegmentReplicationState state) {
+                        logger.info("[ankikala] force sync done");
                         logger.trace(
                             () -> new ParameterizedMessage(
                                 "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
@@ -431,6 +434,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                         ReplicationFailedException e,
                         boolean sendShardFailure
                     ) {
+                        logger.info("[ankikala] force sync failure");
                         logger.trace(
                             () -> new ParameterizedMessage(
                                 "[shardId {}] [replication id {}] Replication failed, timing data: {}",

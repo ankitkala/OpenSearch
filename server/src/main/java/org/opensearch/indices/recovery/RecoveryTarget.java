@@ -373,6 +373,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
+            logger.info("[ankikala] Recieve File info");
             indexShard.resetRecoveryStage();
             indexShard.prepareForIndexRecovery();
             final ReplicationLuceneIndex index = state().getIndex();
@@ -385,6 +386,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             index.setFileDetailsComplete();
             state().getTranslog().totalOperations(totalTranslogOps);
             state().getTranslog().totalOperationsOnStart(totalTranslogOps);
+            logger.info("[ankikala] Recieve File info done");
             return null;
         });
     }

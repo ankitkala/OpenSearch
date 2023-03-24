@@ -205,6 +205,7 @@ public abstract class RecoverySourceHandler {
         sendSnapshotStep.whenComplete(r -> finalizeRecovery(r.targetLocalCheckpoint, trimAboveSeqNo, finalizeStep), onFailure);
 
         finalizeStep.whenComplete(r -> {
+            logger.info("[ankikala] finalizeStep complete");
             final long phase1ThrottlingWaitTime = 0L; // TODO: return the actual throttle time
             final SendSnapshotResult sendSnapshotResult = sendSnapshotStep.result();
             final SendFileResult sendFileResult = sendFileStep.result();
@@ -236,6 +237,7 @@ public abstract class RecoverySourceHandler {
     ) {
         sendFileStep.whenComplete(r -> IOUtils.close(wrappedSafeCommit, releaseStore), e -> {
             try {
+                logger.info("[ankikala] send file step 2 complete");
                 IOUtils.close(wrappedSafeCommit, releaseStore);
             } catch (final IOException ex) {
                 logger.warn("releasing snapshot caused exception", ex);
@@ -354,6 +356,7 @@ public abstract class RecoverySourceHandler {
         ActionListener<SendFileResult> listener,
         boolean skipCreateRetentionLeaseStep
     ) {
+        logger.info("[ankikala] starting phase 1");
         cancellableThreads.checkForCancel();
         final Store store = shard.store();
         try {
@@ -377,7 +380,9 @@ public abstract class RecoverySourceHandler {
                     );
                 }
             }
+            logger.info("[ankikala] Attempting phase 1");
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+                logger.info("[ankikala] Didn't skip phase 1");
                 final List<String> phase1FileNames = new ArrayList<>();
                 final List<Long> phase1FileSizes = new ArrayList<>();
                 final List<String> phase1ExistingFileNames = new ArrayList<>();
@@ -515,6 +520,7 @@ public abstract class RecoverySourceHandler {
     }
 
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
+        logger.info("[ankikala] sendFileInfoStep complete. sendFiles starting");
         final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = transferHandler.createTransfer(
             store,
             files,
@@ -837,6 +843,7 @@ public abstract class RecoverySourceHandler {
             } else {
                 // Force round of segment replication to update its checkpoint to primary's
                 if (shard.indexSettings().isSegRepEnabled()) {
+                    logger.info("[ankikala] Forcing segments sync for segrep {}", recoveryTarget);
                     recoveryTarget.forceSegmentFileSync();
                 }
             }

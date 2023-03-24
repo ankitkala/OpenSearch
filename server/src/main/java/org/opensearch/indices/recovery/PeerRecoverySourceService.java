@@ -157,6 +157,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+        logger.info("[ankikala] starting peer recovery request execution");
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 

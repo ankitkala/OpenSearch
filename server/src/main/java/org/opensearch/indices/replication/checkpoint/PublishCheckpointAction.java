@@ -114,6 +114,8 @@ public class PublishCheckpointAction extends TransportReplicationAction<
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
+            logger.info("[ankikala] publishing the checkpoint {}, {}", indexShard.getReplicationTracker().getGlobalCheckpoint(),
+                indexShard.getReplicationTracker().toString());
             PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
             final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "segrep_publish_checkpoint", request);
             final ReplicationTimer timer = new ReplicationTimer();
