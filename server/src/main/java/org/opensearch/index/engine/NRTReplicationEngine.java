@@ -129,6 +129,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
         // Update the current infos reference on the Engine's reader.
         ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
+            logger.info("[ankikala] Updating segents");
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
             readerManager.updateSegments(infos);
@@ -136,12 +137,14 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
             // Commit and roll the translog when we receive a different generation than what was last received.
             // lower/higher gens are possible from a new primary that was just elected.
             if (incomingGeneration != lastReceivedGen) {
+                logger.info("[ankikala] committing the segment infos");
                 commitSegmentInfos();
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
             lastReceivedGen = incomingGeneration;
             localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
+            logger.info("[ankikala] incomingGeneration:{} maxSeqNo:{}", incomingGeneration, maxSeqNo);
         }
     }
 
@@ -463,7 +466,8 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     @Override
     public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
+        return this;
+        //throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
     }
 
     @Override

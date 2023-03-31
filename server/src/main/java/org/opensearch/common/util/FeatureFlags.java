@@ -75,6 +75,7 @@ public class FeatureFlags {
      * and false otherwise.
      */
     public static boolean isEnabled(String featureFlagName) {
+        if (REMOTE_STORE.equals(featureFlagName) || REPLICATION_TYPE.equals(featureFlagName)) return true;
         if ("true".equalsIgnoreCase(System.getProperty(featureFlagName))) {
             // TODO: Remove the if condition once FeatureFlags are only supported via opensearch.yml
             return true;

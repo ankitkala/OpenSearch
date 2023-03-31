@@ -327,6 +327,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -351,7 +352,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
+        @Nullable final Store remoteStore,
+        @Nullable RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -403,6 +405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
+        this.remoteSegmentNotificationPublisher = remoteSegmentNotificationPublisher;
         this.replicationTracker = new ReplicationTracker(
             shardId,
             aId,
@@ -1806,6 +1809,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void preRecovery() {
+        logger.info("[ankikala] preRecovery");
         final IndexShardState currentState = this.state; // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(shardId, currentState);
@@ -1815,6 +1819,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+        logger.info("[ankikala] postRecovery {}", reason);
         synchronized (postRecoveryMutex) {
             // we need to refresh again to expose all operations that were index until now. Otherwise
             // we may not expose operations that were indexed with a refresh listener that was immediately
@@ -1838,6 +1843,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * called before starting to copy index files over
      */
     public void prepareForIndexRecovery() {
+        logger.info("[ankikala] Preparing for index recovery");
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -2973,11 +2979,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Optional<NRTReplicationEngine> getReplicationEngine() {
-        if (getEngine() instanceof NRTReplicationEngine) {
-            return Optional.of((NRTReplicationEngine) getEngine());
-        } else {
-            return Optional.empty();
+        try {
+            if (getEngine() instanceof NRTReplicationEngine) {
+                return Optional.of((NRTReplicationEngine) getEngine());
+            }
+        } catch (Exception e) {
+            //pass
         }
+        return Optional.empty();
     }
 
     /**
@@ -3077,6 +3086,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertReplicationTarget();
         final long localCheckpoint = getLocalCheckpoint();
         if (globalCheckpoint > localCheckpoint) {
+            logger.info("[ankikala] reason: {}, state: {}", reason, state().toString());
             /*
              * This can happen during recovery when the shard has started its engine but recovery is not finalized and is receiving global
              * checkpoint updates. However, since this shard is not yet contributing to calculating the global checkpoint, it can be the
@@ -3087,8 +3097,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
              */
-            assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED
-                : "supposedly in-sync shard copy received a global checkpoint ["
+            assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED) || indexSettings.isRemoteTranslogStoreEnabled()
+                : "supposedly in-sync shard copy received a global checkpoint  ["
                     + globalCheckpoint
                     + "] "
                     + "that is higher than its local checkpoint ["
@@ -3496,10 +3506,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            internalRefreshListener.add(new RemoteStoreRefreshListener(this));
+            internalRefreshListener.add(new RemoteStoreRefreshListener(this, remoteSegmentNotificationPublisher));
         }
-        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+        // TODO: Disable segrep refresh checkpoint publisher with remote store.
+        // 2nd: if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary() && !indexSettings.isSegRepWithRemoteStoreEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
+            logger.info("[ankikala] Adding segrep refresh listener");
+        }
+        if(indexSettings.isSegRepWithRemoteStoreEnabled()) {
+            logger.info("[ankikala] Hopefully skipping the segrep refresh listener");
         }
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and
@@ -4075,7 +4091,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // for tests
-    ReplicationTracker getReplicationTracker() {
+    public ReplicationTracker getReplicationTracker() {
         return replicationTracker;
     }
 
@@ -4377,12 +4393,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
     }
 
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
+        syncSegmentsFromRemoteSegmentStore(overrideLocal, false);
+    }
     /**
      * Downloads segments from remote segment store.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
+     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean engineOpen) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
@@ -4405,6 +4424,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             String segmentInfosSnapshotFilename = null;
             Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
+            logger.info("local segment files: {}", localSegmentFiles);
+            logger.info("remote segment files: {}", uploadedSegments);
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
@@ -4421,19 +4442,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     skippedSegments.add(file);
                 }
             }
+            logger.info("Segment info file name is {}", segmentInfosSnapshotFilename);
             if (segmentInfosSnapshotFilename != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
                         storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
                     )
                 ) {
+                    logger.info("reading the commit");
                     SegmentInfos infosSnapshot = SegmentInfos.readCommit(
                         store.directory(),
                         indexInput,
                         Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    //store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    /*
+                    if (engineOpen) finalizeReplication(infosSnapshot);
+                    else store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                     */
+                    //finalizeReplication(infosSnapshot);
+                    if (engineOpen) finalizeReplication(infosSnapshot);
+                    else store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                 }
             }
         } catch (IOException e) {
