@@ -47,12 +47,15 @@ public class XReplicationFollowerService implements IndexEventListener {
         this.transportService = transportService;
         this.clusterService = clusterService;
 
+        /*
         transportService.registerRequestHandler(
             Actions.SYNC_FROM_LEADER,
             ThreadPool.Names.GENERIC,
             SyncFromLeaderRequest::new,
             new SyncFromLeaderRequestHandler()
         );
+        */
+
         /*
         transportService.registerRequestHandler(
             Actions.SYNC_FROM_LEADER,

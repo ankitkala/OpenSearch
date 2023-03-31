@@ -6,33 +6,34 @@
  * compatible open source license.
  */
 
-package org.opensearch.xreplication.services;
+package org.opensearch.xreplication.actions.syncsegments;
 
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskId;
-import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Map;
 
-public class SyncFromLeaderRequest extends ActionRequest {
-    private final ShardId shardId;
+public class SyncFromLeaderRequest extends SingleShardRequest<SyncFromLeaderRequest> {
+    ShardId shardId;
+
+    public SyncFromLeaderRequest(ShardId shardId) {
+        super(shardId.getIndexName());
+        this.shardId = shardId;
+    }
+
+    public SyncFromLeaderRequest(StreamInput in) throws IOException {
+        super(in);
+        this.shardId = new ShardId(in);
+    }
 
     public ShardId getShardId() {
         return shardId;
-    }
-
-    public SyncFromLeaderRequest(ShardId shardId) {
-        this.shardId = shardId;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
     }
-
 }

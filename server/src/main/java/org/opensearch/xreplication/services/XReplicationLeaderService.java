@@ -10,6 +10,7 @@ package org.opensearch.xreplication.services;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -23,10 +24,14 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 import org.opensearch.transport.TransportService;
+import org.opensearch.xreplication.actions.syncsegments.SyncFromLeaderAction;
+import org.opensearch.xreplication.actions.syncsegments.SyncFromLeaderResponse;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.opensearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
 
@@ -101,11 +106,18 @@ public class XReplicationLeaderService implements IndexEventListener {
 
     public void notifyAll(IndexShard indexShard, String refreshedLocalFiles) {
         initializeFollowerClients();
+        List<ActionFuture<SyncFromLeaderResponse>> responseFutures = new ArrayList<>();
+        SyncFromLeaderRequest request = new SyncFromLeaderRequest(indexShard.shardId());
         for (Map.Entry<String,Client> follower : followerClients.entrySet()) {
-            logger.info("Notifying {}", follower.getKey());
+            logger.info("Notifying follower {}", follower.getKey());
             // invoke replication.
-            //follower.getValue().execute();
+            responseFutures.add(follower.getValue().execute(SyncFromLeaderAction.INSTANCE, request));
+            ///WORKING HERE.
         }
+        logger.info("[ankikala] started all the tasks");
+        List<SyncFromLeaderResponse> responses =
+            responseFutures.stream().map(ActionFuture::actionGet).collect(Collectors.toList());
+        logger.info("[ankikala] all responses {}", responses);
     }
 
     public void createFollowerIndex(CreateIndexRequest request, List<String> followerAliases) {
