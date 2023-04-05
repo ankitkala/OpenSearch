@@ -25,6 +25,8 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,14 +59,16 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
+    private final RemoteStoreSegmentUploadNotificationPublisher notificationPublisher;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
-    public RemoteStoreRefreshListener(IndexShard indexShard) {
+    public RemoteStoreRefreshListener(IndexShard indexShard, RemoteStoreSegmentUploadNotificationPublisher notificationPublisher) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
         this.primaryTerm = indexShard.getOperationPrimaryTerm();
+        this.notificationPublisher = notificationPublisher;
         localSegmentChecksumMap = new HashMap<>();
         if (indexShard.shardRouting.primary()) {
             try {
@@ -101,6 +105,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         // Ideally, we want this to be done in async flow. (GitHub issue #4315)
                         if (isRefreshAfterCommit()) {
                             deleteStaleCommits();
+                        }
+
+                        ReplicationCheckpoint checkpoint = null;
+                        Map<String, StoreFileMetadata> segmentMetadataMap = null;
+                        if (indexShard.indexSettings.isSegRepWithRemoteStoreEnabled()) {
+                            checkpoint = indexShard.getLatestReplicationCheckpoint();
+                            segmentMetadataMap = indexShard.getSegmentMetadataMap();
                         }
 
                         String segmentInfoSnapshotFilename = null;
@@ -148,6 +159,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         .lastRefreshedCheckpoint();
                                     ((InternalEngine) indexShard.getEngine()).translogManager()
                                         .setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+
+                                    if (indexShard.indexSettings.isSegRepWithRemoteStoreEnabled()) {
+                                        //uploadSegmentMetadataMap(segmentMetadataMap, "segmentMetadataMap");
+                                        notificationPublisher.notifySegmentUpload(indexShard, checkpoint);
+                                    }
                                 }
                             }
                         } catch (EngineException e) {
@@ -195,6 +211,16 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         storeDirectory.sync(Collections.singleton(segmentInfoSnapshotFilename));
         remoteDirectory.copyFrom(storeDirectory, segmentInfoSnapshotFilename, segmentInfoSnapshotFilename, IOContext.DEFAULT, true);
         return segmentInfoSnapshotFilename;
+    }
+
+    private void uploadSegmentMetadataMap(Map<String, StoreFileMetadata> segmentMetadataMap, String segmentMetadataMapFileName) throws IOException {
+        try (IndexOutput indexOutput = storeDirectory.createOutput(segmentMetadataMapFileName, IOContext.DEFAULT)) {
+            indexOutput.writeMapOfStrings(segmentMetadataMap.entrySet().stream().collect(Collectors.toMap(
+                e -> e.getKey(),
+                e -> e.getValue().toString())));
+        }
+        storeDirectory.sync(Collections.singleton(segmentMetadataMapFileName));
+        remoteDirectory.copyFrom(storeDirectory, segmentMetadataMapFileName, segmentMetadataMapFileName, IOContext.DEFAULT, true);
     }
 
     // Visible for testing

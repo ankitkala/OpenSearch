@@ -1558,4 +1558,10 @@ public final class IndexSettings {
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
     }
+
+    public boolean isSegRepWithRemoteStoreEnabled() {
+        // this method can be removed. Used for testing.
+        return isRemoteStoreEnabled();
+    }
 }
+

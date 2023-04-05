@@ -38,13 +38,18 @@ public class SegmentReplicationSourceFactory {
     }
 
     public SegmentReplicationSource get(IndexShard shard) {
-        return new PrimaryShardReplicationSource(
-            shard.recoveryState().getTargetNode(),
-            shard.routingEntry().allocationId().getId(),
-            transportService,
-            recoverySettings,
-            getPrimaryNode(shard.shardId())
-        );
+        if(shard.indexSettings().isSegRepWithRemoteStoreEnabled()) {
+            return new RemoteStoreReplicationSource(shard);
+        }
+        else {
+            return new PrimaryShardReplicationSource(
+                shard.recoveryState().getTargetNode(),
+                shard.routingEntry().allocationId().getId(),
+                transportService,
+                recoverySettings,
+                getPrimaryNode(shard.shardId())
+            );
+        }
     }
 
     private DiscoveryNode getPrimaryNode(ShardId shardId) {

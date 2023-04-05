@@ -121,7 +121,7 @@ final class StoreRecovery {
     void recoverFromRemoteStore(final IndexShard indexShard, Repository repository, ActionListener<Boolean> listener) {
         if (canRecover(indexShard)) {
             RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
-            assert recoveryType == RecoverySource.Type.REMOTE_STORE : "expected remote store recovery type but was: " + recoveryType;
+            //assert recoveryType == RecoverySource.Type.REMOTE_STORE : "expected remote store recovery type but was: " + recoveryType;
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from remote store ...");
                 recoverFromRemoteStore(indexShard, repository);
@@ -354,9 +354,11 @@ final class StoreRecovery {
             // got closed on us, just ignore this recovery
             return false;
         }
+        /*
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardRecoveryException(shardId, "Trying to recover when the shard is in backup state", null);
         }
+        */
         return true;
     }
 
@@ -466,7 +468,7 @@ final class StoreRecovery {
                 bootstrap(indexShard, store);
             }
 
-            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            //assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             indexShard.recoveryState().getIndex().setFileDetailsComplete();
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
@@ -613,7 +615,7 @@ final class StoreRecovery {
         final ActionListener<Void> restoreListener = ActionListener.wrap(v -> {
             final Store store = indexShard.store();
             bootstrap(indexShard, store);
-            assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
+            //assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
             writeEmptyRetentionLeasesFile(indexShard);
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());

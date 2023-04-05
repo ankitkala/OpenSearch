@@ -39,6 +39,9 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContent;
+import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -155,6 +158,7 @@ public class StoreFileMetadata implements Writeable {
         return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);
     }
 
+
     @Override
     public String toString() {
         return "name [" + name + "], length [" + length + "], checksum [" + checksum + "], writtenBy [" + writtenBy + "]";
@@ -174,4 +178,5 @@ public class StoreFileMetadata implements Writeable {
     public BytesRef hash() {
         return hash;
     }
+
 }

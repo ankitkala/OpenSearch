@@ -40,7 +40,10 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
+        logger.info("[ankikala] SegRep checkpount afterRefresh");
+        // TODO: disable refresh if replica is fetching from remote store(instead of isRemoteClusterSegRepEnabled).
         if (didRefresh && shard.state() == IndexShardState.STARTED && shard.getReplicationTracker().isPrimaryMode()) {
+        //if (didRefresh && shard.state() == IndexShardState.STARTED && shard.getReplicationTracker().isPrimaryMode()) {
             publisher.publish(shard, shard.getLatestReplicationCheckpoint());
         }
     }

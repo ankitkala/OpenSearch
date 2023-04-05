@@ -50,7 +50,7 @@ public class VersionedCodecStreamWrapper<T> {
         ChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(indexInput);
         int readStreamVersion = checkHeader(checksumIndexInput);
         T content = getHandlerForVersion(readStreamVersion).readContent(checksumIndexInput);
-        checkFooter(checksumIndexInput);
+        //checkFooter(checksumIndexInput);
         return content;
     }
 
