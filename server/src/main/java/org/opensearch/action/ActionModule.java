@@ -439,9 +439,18 @@ import org.opensearch.rest.action.search.RestGetAllPitsAction;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
+import org.opensearch.xreplication.actions.index.StartCCRIndexTaskAction;
+import org.opensearch.xreplication.actions.index.TransportStartCCRIndexTaskAction;
+import org.opensearch.xreplication.actions.start.RestStartCCRAction;
+import org.opensearch.xreplication.actions.start.StartCCRAction;
+import org.opensearch.xreplication.actions.start.TransportStartCCRAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
+import org.opensearch.xreplication.actions.followers.StartCCRFollowerTaskAction;
+import org.opensearch.xreplication.actions.followers.TransportStartCCRFollowerTaskAction;
+import org.opensearch.xreplication.actions.syncsegments.SyncFromLeaderAction;
+import org.opensearch.xreplication.actions.syncsegments.TransportSyncFromLeaderAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -731,6 +740,14 @@ public class ActionModule extends AbstractModule {
         actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);
         actions.register(GetDecommissionStateAction.INSTANCE, TransportGetDecommissionStateAction.class);
         actions.register(DeleteDecommissionStateAction.INSTANCE, TransportDeleteDecommissionStateAction.class);
+
+
+        // Tansport actions for Full Cluster Replication
+        actions.register(StartCCRAction.INSTANCE, TransportStartCCRAction.class);
+        actions.register(StartCCRFollowerTaskAction.INSTANCE, TransportStartCCRFollowerTaskAction.class);
+        actions.register(StartCCRIndexTaskAction.INSTANCE, TransportStartCCRIndexTaskAction.class);
+        actions.register(SyncFromLeaderAction.INSTANCE, TransportSyncFromLeaderAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -914,6 +931,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetAllPitsAction(nodesInCluster));
         registerHandler.accept(new RestPitSegmentsAction(nodesInCluster));
         registerHandler.accept(new RestDeleteDecommissionStateAction());
+
+        // xcluster
+        registerHandler.accept(new RestStartCCRAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

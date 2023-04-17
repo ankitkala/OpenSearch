@@ -495,6 +495,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope,
         Property.Final
     );
+    public static final String CCR_REPLICATING_FROM_INDEX = "index.replication.fcr.replicating_from";
+    public static final Setting<String> CCR_REPLICATING_FROM_INDEX_SETTING = new Setting<>(CCR_REPLICATING_FROM_INDEX, "", Function.identity(), Property.IndexScope);
+
+    public static final String CCR_REMOTE_PATH = "index.replication.fcr.remote_path";
+    public static final Setting<String> CCR_REMOTE_PATH_SETTING = new Setting<>(
+        CCR_REMOTE_PATH,
+        "",
+        Function.identity(),
+        Property.IndexScope
+    );
 
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final Setting<AutoExpandReplicas> INDEX_AUTO_EXPAND_REPLICAS_SETTING = AutoExpandReplicas.SETTING;

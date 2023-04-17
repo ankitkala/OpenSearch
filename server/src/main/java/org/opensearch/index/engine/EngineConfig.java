@@ -408,6 +408,11 @@ public final class EngineConfig {
         return indexSettings.isSegRepEnabled() && isReadOnlyReplica;
     }
 
+
+    public boolean isReadOnlyPrimary() {
+        return indexSettings.isSegRepEnabled() && indexSettings.isRemoteStoreEnabled() && indexSettings.isCCRReplicatingIndex() && !isReadOnlyReplica;
+    }
+
     /**
      * Returns the underlying primaryModeSupplier.
      * @return the primary mode supplier.

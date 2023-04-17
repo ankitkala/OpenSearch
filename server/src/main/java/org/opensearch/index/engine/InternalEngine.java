@@ -256,6 +256,7 @@ public class InternalEngine extends Engine {
             throttle = new IndexThrottle();
             try {
                 store.trimUnsafeCommits(engineConfig.getTranslogConfig().getTranslogPath());
+                //TODO: fix this. Reading translogUUID from segments won't work if the segments are from a different cluster(CCR).
                 final Map<String, String> userData = store.readLastCommittedSegmentsInfo().getUserData();
                 final String translogUUID = Objects.requireNonNull(userData.get(Translog.TRANSLOG_UUID_KEY));
                 TranslogEventListener internalTranslogEventListener = new TranslogEventListener() {
