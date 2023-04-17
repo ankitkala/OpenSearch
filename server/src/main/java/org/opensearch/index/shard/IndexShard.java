@@ -162,6 +162,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.index.translog.TranslogCorruptedException;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
@@ -2185,7 +2186,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false, true, false);
+                syncSegmentsFromRemoteSegmentStore(false, true, true);
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
@@ -3502,10 +3503,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
-        if (isRemoteStoreEnabled()) {
+        // Skip SegRep refresh listener for CCR follower indices.
+        if (isRemoteStoreEnabled() && !indexSettings.isCCRReplicatingIndex()) {
             internalRefreshListener.add(new RemoteStoreRefreshListener(this, remoteSegmentNotificationPublisher));
         }
-        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary() && !indexSettings.isRemoteStoreEnabled()) {
+        // Skip SegRep refresh listener for CCR leader as well as follower indices.
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary() && !indexSettings.isRemoteStoreEnabled() && !indexSettings.isCCRReplicatingIndex()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
 
@@ -4352,7 +4355,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false, true, false);
+                syncSegmentsFromRemoteSegmentStore(false, true, true);
             }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
@@ -4456,13 +4459,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         indexInput,
                         Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
                     );
+
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
                     if (shouldCommit) {
-                        finalizeReplication(infosSnapshot);
-                        store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infosSnapshot);
+                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
                     }
                     else {
-                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                        // We don't need to trigger a commit for segment copy from primaries(like SegRep with remote store, CCR)
+                        finalizeReplication(infosSnapshot);
+                        store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infosSnapshot);
                     }
                 }
             }

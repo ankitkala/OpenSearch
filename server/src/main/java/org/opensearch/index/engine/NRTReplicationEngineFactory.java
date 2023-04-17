@@ -17,7 +17,8 @@ package org.opensearch.index.engine;
 public class NRTReplicationEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
-        if (config.isReadOnlyReplica()) {
+        // Load NRTReplicationEngine for primaries on CCR Follower as well.
+        if (config.isReadOnlyReplica() || config.isReadOnlyPrimary()) {
             return new NRTReplicationEngine(config);
         }
         return new InternalEngine(config);

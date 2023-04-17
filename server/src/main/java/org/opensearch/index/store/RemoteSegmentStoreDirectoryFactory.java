@@ -41,7 +41,12 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();
-            commonBlobPath = commonBlobPath.add(indexSettings.getIndex().getUUID())
+            String indexUUID = indexSettings.getIndex().getUUID();
+            // override the follower's remote store path to leader index's uuid.
+            if (indexSettings.isCCRReplicatingIndex()) {
+                indexUUID = indexSettings.getCCRReplicatingFrom();
+            }
+            commonBlobPath = commonBlobPath.add(indexUUID)
                 .add(String.valueOf(path.getShardId().getId()))
                 .add("segments");
 

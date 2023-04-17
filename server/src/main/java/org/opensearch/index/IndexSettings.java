@@ -62,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.CCR_REMOTE_PATH_SETTING;
 import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.opensearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
@@ -587,6 +588,8 @@ public final class IndexSettings {
     private final int numberOfShards;
     private final ReplicationType replicationType;
     private final boolean isRemoteStoreEnabled;
+    private final boolean isCCRReplicatingIndex;
+    private final String ccrReplicatingFrom;
     private final boolean isRemoteTranslogStoreEnabled;
     private final TimeValue remoteTranslogUploadBufferInterval;
     private final String remoteStoreTranslogRepository;
@@ -761,6 +764,8 @@ public final class IndexSettings {
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
+        ccrReplicatingFrom = settings.get(IndexMetadata.CCR_REPLICATING_FROM_INDEX, "");
+        isCCRReplicatingIndex = !Strings.isNullOrEmpty(ccrReplicatingFrom);
         remoteTranslogUploadBufferInterval = settings.getAsTime(
             IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL,
             TimeValue.timeValueMillis(100)
@@ -1024,6 +1029,13 @@ public final class IndexSettings {
         return isRemoteStoreEnabled;
     }
 
+    public boolean isCCRReplicatingIndex() {
+        return isCCRReplicatingIndex;
+    }
+
+    public String getCCRReplicatingFrom() {
+        return ccrReplicatingFrom;
+    }
     /**
      * Returns remote store repository configured for this index.
      */
@@ -1564,5 +1576,9 @@ public final class IndexSettings {
 
     public Optional<UnaryOperator<MergePolicy>> getMergeOnFlushPolicy() {
         return Optional.ofNullable(mergeOnFlushPolicy);
+    }
+
+    public String getCCRRemotePath() {
+        return CCR_REMOTE_PATH_SETTING.get(settings);
     }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.index.translog;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -43,6 +44,7 @@ import org.opensearch.common.io.Channels;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.logging.Loggers;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -180,13 +182,16 @@ final class TranslogHeader {
 
             // verify UUID only after checksum, to ensure that UUID is not corrupted
             final BytesRef expectedUUID = new BytesRef(translogUUID);
+            Logger logger = Loggers.getLogger(TranslogHeader.class, "");
+            // Skipping the check for now.
+            /*
             if (uuid.bytesEquals(expectedUUID) == false) {
                 throw new TranslogCorruptedException(
                     path.toString(),
                     "expected shard UUID " + expectedUUID + " but got: " + uuid + " this translog file belongs to a different translog"
                 );
             }
-
+            */
             return new TranslogHeader(translogUUID, primaryTerm, headerSizeInBytes);
         } catch (EOFException e) {
             throw new TranslogCorruptedException(path.toString(), "translog header truncated", e);

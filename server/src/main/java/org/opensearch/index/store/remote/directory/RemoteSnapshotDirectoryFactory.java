@@ -73,10 +73,7 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         ShardPath localShardPath,
         BlobStoreRepository blobStoreRepository
     ) throws IOException {
-        final BlobPath blobPath = blobStoreRepository.basePath()
-            .add("indices")
-            .add(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.get(indexSettings.getSettings()))
-            .add(Integer.toString(localShardPath.getShardId().getId()));
+        final BlobPath blobPath = getBlobPath(indexSettings, localShardPath, blobStoreRepository);
         final SnapshotId snapshotId = new SnapshotId(
             IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.get(indexSettings.getSettings()),
             IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.get(indexSettings.getSettings())
@@ -93,5 +90,16 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
             TransferManager transferManager = new TransferManager(blobContainer, remoteStoreFileCache);
             return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
         });
+    }
+
+    private BlobPath getBlobPath(IndexSettings indexSettings, ShardPath localShardPath, BlobStoreRepository blobStoreRepository) {
+        if(indexSettings.isCCRReplicatingIndex()) {
+            return blobStoreRepository.basePath().add(indexSettings.getCCRRemotePath());
+        } else {
+            return blobStoreRepository.basePath()
+                .add("indices")
+                .add(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.get(indexSettings.getSettings()))
+                .add(Integer.toString(localShardPath.getShardId().getId()));
+        }
     }
 }

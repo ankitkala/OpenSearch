@@ -75,15 +75,25 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
 
     @Override
     public void getSegmentFiles(long replicationId, ReplicationCheckpoint checkpoint, List<StoreFileMetadata> filesToFetch, IndexShard indexShard, ActionListener<GetSegmentFilesResponse> listener) {
-        try {
-            indexShard.syncSegmentsFromRemoteSegmentStore(false, true, true);
-        } catch (IOException e) {
-            logger.error("Failed to sync segments {}", e);
-            listener.onFailure(e);
-            return;
+        // have multiple retries in case we run into a race condition.
+        int max_attempts = 3;
+        while (max_attempts-- > 0) {
+            try {
+                indexShard.syncSegmentsFromRemoteSegmentStore(false, true, false);
+                listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+                return;
+            } catch (Exception e) {
+                logger.error("Failed to sync segments {}", e);
+                if (max_attempts == 0) {
+                    listener.onFailure(e);
+                    return;
+                }
+            }
         }
-        listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
+        listener.onFailure(new Exception("Unable to sync segments. You shouldn't get this exception ideally"));
     }
+
+
 
     @Override
     public String getDescription() {
