@@ -2231,7 +2231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false);
+                syncSegmentsFromRemoteSegmentStore(false, true, true);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -4405,7 +4405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false);
+                syncSegmentsFromRemoteSegmentStore(false, true, true);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
                 syncRemoteTranslogAndUpdateGlobalCheckpoint();
@@ -4456,22 +4456,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Downloads segments from remote segment store. This method will download segments till
-     * last refresh checkpoint.
-     * @param overrideLocal flag to override local segment files with those in remote store
-     * @throws IOException if exception occurs while reading segments from remote store
-     */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
-        syncSegmentsFromRemoteSegmentStore(overrideLocal, true);
-    }
-
-    /**
      * Downloads segments from remote segment store.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
+     * @param shouldCommit if the shard requires committing the changes after sync from remote.
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync, boolean shouldCommit)
+        throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
@@ -4529,13 +4521,51 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
                     )
                 ) {
-                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(
-                        store.directory(),
-                        indexInput,
-                        Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
-                    );
+                    SegmentInfos infosSnapshot = null;
+                    boolean canRetry = true;
+                    while (true) {
+                        try {
+                            infosSnapshot = SegmentInfos.readCommit(
+                                store.directory(),
+                                indexInput,
+                                Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
+                            );
+                            break;
+                        } catch (FileNotFoundException e) {
+                            /**
+                             * While we're downloading the segment files from remote store, primary is continuously writing as well.
+                             * Primary updates segmentInfo in same file on remote store during refreshes(not for commit though).
+                             * This can lead to race conditions where the segmentInfo file downloaded is from a newer refresh
+                             * and points to segment files which we haven't even downloaded thus resulting in FileNotFoundException.
+                             * So to handle this, we again download the delta in segments from store and retry.
+                             * Since, we're not downloading the files which are already downloaded, we skip the segmentInfosSnapshot during retry.
+                             * This guarantees that all files needs to refresh the reader are available, and we don't run into race conditions during retry.
+                             */
+                            if (canRetry) {
+                                canRetry = false; // only retry once
+                                // download diff.
+                                ((RemoteSegmentStoreDirectory) remoteDirectory).init();
+                                uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory).getSegmentsUploadedToRemoteStore();
+                                Set<String> segmentsToFetch = uploadedSegments.keySet();
+                                segmentsToFetch.removeAll(downloadedSegments);
+                                segmentsToFetch.removeAll(skippedSegments);
+                                for (String file : segmentsToFetch) {
+                                    storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+                                }
+                                logger.info("Fetching extra segments during retry: {}", segmentsToFetch);
+                                downloadedSegments.addAll(segmentsToFetch);
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    if (shouldCommit) {
+                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    } else {
+                        finalizeReplication(infosSnapshot);
+                    }
                 }
             }
         } catch (IOException e) {
