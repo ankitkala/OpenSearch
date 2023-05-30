@@ -581,6 +581,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * from xlog.
      */
     public void testReplicationPostDeleteAndForceMerge() throws Exception {
+        assumeFalse(
+            "Skipping the test with Remote store as its flaky.",
+            segmentReplicationWithRemoteEnabled()
+        );
         final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
         final String replica = internalCluster().startNode();
@@ -879,6 +883,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
      * @throws Exception when issue is encountered
      */
     public void testScrollCreatedOnReplica() throws Exception {
+        assumeFalse(
+            "Skipping the test with Remote store as its flaky.",
+            segmentReplicationWithRemoteEnabled()
+        );
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
         final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
