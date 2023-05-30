@@ -9,29 +9,28 @@
 package org.opensearch.indices.replication;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.FilterDirectory;
-import org.apache.lucene.util.Version;
-import org.opensearch.action.ActionListener;
+import org.mockito.Mockito;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.RemoteStoreRefreshListenerTests;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RemoteStoreReplicationSourceTests extends IndexShardTestCase {
+public class RemoteStoreReplicationSourceTests extends OpenSearchIndexLevelReplicationTestCase {
 
     private static final long PRIMARY_TERM = 1L;
     private static final long SEGMENTS_GEN = 2L;
@@ -51,6 +50,10 @@ public class RemoteStoreReplicationSourceTests extends IndexShardTestCase {
             new InternalEngineFactory()
         );
 
+        indexDoc(indexShard, "_doc", "1");
+        indexDoc(indexShard, "_doc", "2");
+        indexShard.refresh("test");
+
         // mock shard
         mockShard = mock(IndexShard.class);
         Store store = mock(Store.class);
@@ -67,7 +70,6 @@ public class RemoteStoreReplicationSourceTests extends IndexShardTestCase {
         when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
 
         replicationSource = new RemoteStoreReplicationSource(mockShard);
-        when(mockShard.getSegmentInfosSnapshot()).thenReturn(new GatedCloseable<>(new SegmentInfos(Version.LATEST.major), () -> {}));
     }
 
     @Override
@@ -76,7 +78,8 @@ public class RemoteStoreReplicationSourceTests extends IndexShardTestCase {
         super.tearDown();
     }
 
-    public void testGetCheckpointMetadata() {
+    public void testGetCheckpointMetadata() throws ExecutionException, InterruptedException {
+        when(mockShard.getSegmentInfosSnapshot()).thenReturn(indexShard.getSegmentInfosSnapshot());
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
             indexShard.shardId(),
             PRIMARY_TERM,
@@ -86,25 +89,13 @@ public class RemoteStoreReplicationSourceTests extends IndexShardTestCase {
         );
 
         final PlainActionFuture<CheckpointInfoResponse> res = PlainActionFuture.newFuture();
-        replicationSource.getCheckpointMetadata(
-            REPLICATION_ID,
-            checkpoint,
-            ActionListener.wrap(r -> res.onResponse(r), e -> new AssertionError("getCheckpointMetadata execution failed", e))
-        );
-
-        try {
-            CheckpointInfoResponse response = res.get();
-            assert (response.getCheckpoint().equals(checkpoint));
-            assert (response.getMetadataMap().isEmpty());
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e);
-        }
-
+        replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
+        CheckpointInfoResponse response = res.get();
+        assert (response.getCheckpoint().equals(checkpoint));
+        assert (!response.getMetadataMap().isEmpty());
     }
 
-    public void testGetSegmentFiles() {
+    public void testGetCheckpointMetadataFailure() {
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
             indexShard.shardId(),
             PRIMARY_TERM,
@@ -112,21 +103,48 @@ public class RemoteStoreReplicationSourceTests extends IndexShardTestCase {
             VERSION,
             Codec.getDefault().getName()
         );
-        final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
-        replicationSource.getSegmentFiles(
-            REPLICATION_ID,
-            checkpoint,
-            Collections.emptyList(),
-            indexShard,
-            ActionListener.wrap(r -> res.onResponse(r), e -> new AssertionError("testGetSegmentFiles execution failed", e))
+
+        when(mockShard.getSegmentInfosSnapshot()).thenThrow(new RuntimeException("test"));
+
+        assertThrows(RuntimeException.class, () -> {
+            final PlainActionFuture<CheckpointInfoResponse> res = PlainActionFuture.newFuture();
+            replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, res);
+            res.get();
+        });
+    }
+
+    public void testGetSegmentFiles() throws ExecutionException, InterruptedException {
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            indexShard.shardId(),
+            PRIMARY_TERM,
+            SEGMENTS_GEN,
+            VERSION,
+            Codec.getDefault().getName()
         );
-        try {
-            GetSegmentFilesResponse response = res.get();
-            assert (response.files.isEmpty());
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+
+        final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
+        replicationSource.getSegmentFiles(REPLICATION_ID, checkpoint, Collections.emptyList(), indexShard, res);
+        GetSegmentFilesResponse response = res.get();
+        assert (response.files.isEmpty());
+        assertEquals("remote store", replicationSource.getDescription());
+
+    }
+
+    public void testGetSegmentFilesFailure() throws IOException {
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            indexShard.shardId(),
+            PRIMARY_TERM,
+            SEGMENTS_GEN,
+            VERSION,
+            Codec.getDefault().getName()
+        );
+        Mockito.doThrow(new RuntimeException("testing"))
+            .when(mockShard)
+            .syncSegmentsFromRemoteSegmentStore(Mockito.anyBoolean(), Mockito.anyBoolean(), Mockito.anyBoolean());
+        assertThrows(ExecutionException.class, () -> {
+            final PlainActionFuture<GetSegmentFilesResponse> res = PlainActionFuture.newFuture();
+            replicationSource.getSegmentFiles(REPLICATION_ID, checkpoint, Collections.emptyList(), mockShard, res);
+            res.get(10, TimeUnit.SECONDS);
+        });
     }
 }

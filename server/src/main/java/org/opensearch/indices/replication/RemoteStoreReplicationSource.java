@@ -19,7 +19,6 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -71,8 +70,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 );
             // TODO: GET current checkpoint from remote store.
             listener.onResponse(new CheckpointInfoResponse(checkpoint, metadataMap, null));
-        } catch (IOException e) {
-            logger.error("Error fetching checkpoint metadata from remote store", e);
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
@@ -89,7 +87,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             indexShard.syncSegmentsFromRemoteSegmentStore(false, true, false);
             listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
         } catch (Exception e) {
-            logger.error("Failed to sync segments", e);
             listener.onFailure(e);
         }
     }

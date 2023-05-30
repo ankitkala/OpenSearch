@@ -4546,7 +4546,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 // download diff.
                                 ((RemoteSegmentStoreDirectory) remoteDirectory).init();
                                 uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory).getSegmentsUploadedToRemoteStore();
-                                Set<String> segmentsToFetch = uploadedSegments.keySet();
+                                List<String> segmentsToFetch = uploadedSegments.keySet().stream().collect(Collectors.toList());
                                 segmentsToFetch.removeAll(downloadedSegments);
                                 segmentsToFetch.removeAll(skippedSegments);
                                 for (String file : segmentsToFetch) {
