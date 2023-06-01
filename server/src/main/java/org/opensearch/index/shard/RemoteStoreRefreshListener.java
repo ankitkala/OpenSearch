@@ -355,6 +355,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         segmentInfosSnapshot.setUserData(userData, false);
 
+        logger.info("ankikala: uploading segments {}", segmentInfosSnapshot.files(true));
         long commitGeneration = SegmentInfos.generationFromSegmentsFileName(latestSegmentsNFilename);
         String segmentInfoSnapshotFilename = SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + commitGeneration;
         try (IndexOutput indexOutput = storeDirectory.createOutput(segmentInfoSnapshotFilename, IOContext.DEFAULT)) {

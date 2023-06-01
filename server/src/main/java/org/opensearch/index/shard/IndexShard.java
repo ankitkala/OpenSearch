@@ -4530,8 +4530,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 indexInput,
                                 Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
                             );
+                            logger.info("ankikala {}", infosSnapshot.files(true));
                             break;
-                        } catch (FileNotFoundException e) {
+                        } catch (FileNotFoundException | NoSuchFileException e) {
                             /**
                              * While we're downloading the segment files from remote store, primary is continuously writing as well.
                              * Primary updates segmentInfo in same file on remote store during refreshes(not for commit though).

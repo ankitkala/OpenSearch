@@ -19,10 +19,12 @@ import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.indices.replication.common.ReplicationType;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.UUID;
 
 public class SegmentReplicationWithRemoteIndexShardTests extends OpenSearchIndexLevelReplicationTestCase {
     private static final Settings settings = Settings.builder()
@@ -50,7 +52,7 @@ public class SegmentReplicationWithRemoteIndexShardTests extends OpenSearchIndex
     }
 
     public void testReplicaSyncingFromRemoteStoreWithMissingSegmentFile() throws IOException {
-        Path remotePath = createTempDir();
+        Path remotePath = createTempDir(String.valueOf(UUID.randomUUID()));
         ReplicationGroup shards = createGroup(1, settings, indexMapping, new NRTReplicationEngineFactory(), remotePath);
         final IndexShard primaryShard = shards.getPrimary();
         final IndexShard replicaShard = shards.getReplicas().get(0);
@@ -61,6 +63,7 @@ public class SegmentReplicationWithRemoteIndexShardTests extends OpenSearchIndex
         indexDoc(primaryShard, "_doc", "2");
         primaryShard.refresh("test");
         assertDocs(primaryShard, "1", "2");
+        //flushShard(primaryShard, true);
 
         // Copy the metadata file
         Directory remoteFSDirectory = new NIOFSDirectory(remotePath.resolve("indices/_na_/0/index/"));
@@ -74,11 +77,13 @@ public class SegmentReplicationWithRemoteIndexShardTests extends OpenSearchIndex
             metadataBytes = new byte[(int) indexInput.length()];
             indexInput.readBytes(metadataBytes, 0, (int) indexInput.length());
         }
+        //replicaShard.syncSegmentsFromRemoteSegmentStore(true, true, false);
 
         // Add more docs to primary and refresh
         indexDoc(primaryShard, "_doc", "3");
         indexDoc(primaryShard, "_doc", "4");
         primaryShard.refresh("test");
+        //flushShard(primaryShard, true);
         assertDocs(primaryShard, "1", "2", "3", "4");
 
         // Override the metadata file with older content to simulate the race condition
@@ -86,12 +91,20 @@ public class SegmentReplicationWithRemoteIndexShardTests extends OpenSearchIndex
             .filter(f -> f.startsWith("metadata"))
             .max(Comparator.comparing(String::valueOf))
             .get();
+
         logger.info("Overriding metadata content for {}", metadataFile);
         remoteFSDirectory.deleteFile(metadataFile);
         IndexOutput output = remoteFSDirectory.createOutput(metadataFile, IOContext.DEFAULT);
         output.writeBytes(metadataBytes, metadataBytes.length);
         output.close();
-        assertThrows(IndexShardRecoveryException.class, () -> replicaShard.syncSegmentsFromRemoteSegmentStore(true, true, false));
+
+        try {
+            replicaShard.syncSegmentsFromRemoteSegmentStore(true, true, false);
+            fail("Didn't throw error message");
+        } catch (IndexShardRecoveryException e) {
+            logger.error("Exception {}", e);
+            assert e.getRootCause() instanceof FileNotFoundException;
+        }
 
         indexDoc(primaryShard, "_doc", "5");
         indexDoc(primaryShard, "_doc", "6");
