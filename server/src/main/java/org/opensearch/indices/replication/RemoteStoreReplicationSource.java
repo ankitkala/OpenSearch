@@ -53,7 +53,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         final Version version = indexShard.getSegmentInfosSnapshot().get().getCommitLuceneVersion();
         try {
-            metadataMap = remoteDirectory.readLatestMetadataFile()
+            metadataMap = remoteDirectory.readLatestMetadataFile().getMetadata()
                 .entrySet()
                 .stream()
                 .collect(

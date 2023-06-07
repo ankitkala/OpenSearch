@@ -149,6 +149,7 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void verifyStoreContent() throws Exception {
         assertBusy(() -> {
+            logger.info("ankikala: trying now");
             final ClusterState clusterState = getClusterState();
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {

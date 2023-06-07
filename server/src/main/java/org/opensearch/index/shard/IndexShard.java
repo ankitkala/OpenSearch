@@ -4530,6 +4530,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     Optional<String> localMaxSegmentInfos = localSegmentFiles.stream()
                         .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
                         .max(Comparator.comparingLong(SegmentInfos::generationFromSegmentsFileName));
+                    logger.info("ankikala: local files {}", localSegmentFiles);
+                    logger.info("ankikala: Generation: remote: {} vs local {}", infosSnapshot.getGeneration(), SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()));
                     if (localMaxSegmentInfos.isPresent()
                         && infosSnapshot.getGeneration() < SegmentInfos.generationFromSegmentsFileName(localMaxSegmentInfos.get()) - 1) {
                         // If remote translog is not enabled, local translog will be created with different UUID.
@@ -4541,6 +4543,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             userData.put(TRANSLOG_UUID_KEY, localSegmentInfos.userData.get(TRANSLOG_UUID_KEY));
                             infosSnapshot.setUserData(userData, false);
                         }
+                        logger.info("ankikala: deleting {}", localMaxSegmentInfos.get());
                         storeDirectory.deleteFile(localMaxSegmentInfos.get());
                     }
                     if (shouldCommit) {
@@ -4553,6 +4556,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (IOException e) {
             throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
         } finally {
+            logger.info("Remote files: {}", uploadedSegments.keySet());
             logger.info("Downloaded segments: {}", downloadedSegments);
             logger.info("Skipped download for segments: {}", skippedSegments);
             store.decRef();
