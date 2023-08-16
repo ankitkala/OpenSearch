@@ -1,9 +1,11 @@
 name: Gradle Precommit and Asssemble
-on: [pull_request]
+on:
+  push:
+    branches:
+      - test_actions
 
 jobs:
   precommit:
-    if: github.repository == 'opensearch-project/OpenSearch'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
