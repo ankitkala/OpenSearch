@@ -1,5 +1,8 @@
 name: Gradle Precommit and Asssemble
-on: [pull_request]
+on:
+  push:
+    branches:
+      - test_actions
 
 jobs:
   precommit:
