@@ -281,6 +281,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
 
+    public static final String INDEX_TYPE_WARM_ENABLED = "index.type.warm.enabled";
+    public static final Setting<Boolean> WARM_TYPE_SETTING = Setting.boolSetting(INDEX_TYPE_WARM_ENABLED, false,
+        Property.IndexScope, Property.Final);
+
     /**
      * Used to specify the replication type for the index. By default, document replication is used.
      */

@@ -53,8 +53,10 @@ public interface RefCountedCache<K, V> {
 
     /**
      * Discards any cached value for key {@code key}, regardless of reference count.
+     *
+     * @return
      */
-    void remove(K key);
+    boolean remove(K key);
 
     /**
      * Discards all entries in the cache, regardless of reference count.

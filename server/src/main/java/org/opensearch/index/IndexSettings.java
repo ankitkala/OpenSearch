@@ -689,6 +689,8 @@ public final class IndexSettings {
     private final String remoteStoreRepository;
     private final boolean isRemoteSnapshot;
     private int remoteTranslogKeepExtraGen;
+
+    private boolean isWarmIndex;
     private Version extendedCompatibilitySnapshotVersion;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
@@ -867,7 +869,7 @@ public final class IndexSettings {
         } else {
             extendedCompatibilitySnapshotVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
         }
-
+        this.isWarmIndex = isRemoteStoreEnabled && settings.getAsBoolean(IndexMetadata.INDEX_TYPE_WARM_ENABLED, false);
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.shouldCleanupUnreferencedFiles = INDEX_UNREFERENCED_FILE_CLEANUP.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -1174,6 +1176,10 @@ public final class IndexSettings {
      */
     public boolean isRemoteStoreEnabled() {
         return isRemoteStoreEnabled;
+    }
+
+    public boolean isWarmIndex() {
+        return isWarmIndex;
     }
 
     /**

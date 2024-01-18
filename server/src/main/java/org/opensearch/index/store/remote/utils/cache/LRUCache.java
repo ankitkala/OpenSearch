@@ -175,7 +175,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-    public void remove(K key) {
+    public boolean remove(K key) {
         Objects.requireNonNull(key);
         lock.lock();
         try {
@@ -183,6 +183,7 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
         } finally {
             lock.unlock();
         }
+        return false;
     }
 
     @Override

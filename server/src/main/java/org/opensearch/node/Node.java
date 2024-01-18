@@ -735,11 +735,16 @@ public class Node implements Closeable {
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = enginePlugins.stream()
                 .map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>) plugin::getEngineFactory)
                 .collect(Collectors.toList());
+            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                repositoriesServiceReference::get,
+                threadPool
+            );
 
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
                 repositoriesServiceReference::get,
                 threadPool,
-                fileCache
+                fileCache,
+                remoteDirectoryFactory
             );
 
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
@@ -780,10 +785,10 @@ public class Node implements Closeable {
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
 
-            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
-                repositoriesServiceReference::get,
-                threadPool
-            );
+//            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+//                repositoriesServiceReference::get,
+//                threadPool
+//            );
 
             final SearchRequestStats searchRequestStats = new SearchRequestStats(clusterService.getClusterSettings());
             final SearchRequestSlowLog searchRequestSlowLog = new SearchRequestSlowLog(clusterService);

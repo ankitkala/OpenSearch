@@ -91,6 +91,8 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.RemoteStoreInterface;
+import org.opensearch.index.store.remote.directory.CompositeBlockDirectory;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
@@ -486,12 +488,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             };
 
             Store remoteStore = null;
+
             if (this.indexSettings.isRemoteStoreEnabled()) {
                 Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY, path);
             }
 
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            if (directory instanceof CompositeBlockDirectory) {
+                ((CompositeBlockDirectory) directory).setRemote(new RemoteStoreInterface() {
+                    @Override
+                    public String toString() {
+                        return super.toString();
+                    }
+                });
+            }
             store = new Store(
                 shardId,
                 this.indexSettings,
@@ -500,6 +511,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)),
                 path
             );
+
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                 routing,

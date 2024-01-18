@@ -97,9 +97,10 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-    public void remove(K key) {
+    public boolean remove(K key) {
         if (key == null) throw new NullPointerException();
         segmentFor(key).remove(key);
+        return false;
     }
 
     @Override

@@ -110,9 +110,10 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      * still take effect.
      *
      * @param filePath given file path
+     * @return
      */
-    public void remove(final Path filePath) {
-        theCache.remove(filePath);
+    public boolean remove(final Path filePath) {
+        return theCache.remove(filePath);
     }
 
     @Override

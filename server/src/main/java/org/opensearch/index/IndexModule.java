@@ -75,6 +75,7 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.remote.directory.CompositeBlockDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
@@ -505,7 +506,8 @@ public final class IndexModule {
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
         FS("fs"),
-        REMOTE_SNAPSHOT("remote_snapshot");
+        REMOTE_SNAPSHOT("remote_snapshot"),
+        TIERED_WARM("tiered_warm");
 
         private final String settingsKey;
         private final boolean deprecated;
@@ -611,7 +613,7 @@ public final class IndexModule {
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
             .get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
-        final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
+        final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories, remoteDirectoryFactory);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
@@ -677,9 +679,16 @@ public final class IndexModule {
 
     private static IndexStorePlugin.DirectoryFactory getDirectoryFactory(
         final IndexSettings indexSettings,
-        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories
-    ) {
-        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
+        final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory) {
+        final String storeType;
+        //TODO: Move from setting to store maybe.
+        if (indexSettings.isWarmIndex()) {
+            storeType = Type.TIERED_WARM.settingsKey;
+        } else {
+            storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
+        }
+
         final Type type;
         final Boolean allowMmap = NODE_STORE_ALLOW_MMAP.get(indexSettings.getNodeSettings());
         if (storeType.isEmpty() || Type.FS.getSettingsKey().equals(storeType)) {
@@ -769,8 +778,8 @@ public final class IndexModule {
     public static Map<String, IndexStorePlugin.DirectoryFactory> createBuiltInDirectoryFactories(
         Supplier<RepositoriesService> repositoriesService,
         ThreadPool threadPool,
-        FileCache remoteStoreFileCache
-    ) {
+        FileCache remoteStoreFileCache,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory) {
         final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
         for (Type type : Type.values()) {
             switch (type) {
@@ -786,6 +795,10 @@ public final class IndexModule {
                         type.getSettingsKey(),
                         new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache)
                     );
+                    break;
+                case TIERED_WARM:
+                    // TODO: Add composite directory factory here.
+                    factories.put(type.getSettingsKey(), new CompositeBlockDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache, DEFAULT_DIRECTORY_FACTORY, remoteDirectoryFactory));
                     break;
                 default:
                     throw new IllegalStateException("No directory factory mapping for built-in type " + type);
