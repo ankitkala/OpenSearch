@@ -52,6 +52,7 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         final StepListener<SendFileResult> sendFileStep = new StepListener<>();
         final StepListener<TimeValue> prepareEngineStep = new StepListener<>();
         final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
+        logger.info("ankitkala: peer recovery handler innerRecoveryToTarget");
 
         // It is always file based recovery while recovering replicas which are not relocating primary where the
         // underlying indices are backed by remote store for storing segments and translog

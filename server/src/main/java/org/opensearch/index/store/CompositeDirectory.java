@@ -234,14 +234,15 @@ public class CompositeDirectory extends FilterDirectory {
             logger.trace("afterSyncToRemote called even though remote directory is not set");
             return;
         }
-        for (String fileName : files) {
-            writeLock.lock();
-            try {
-                localDirectory.deleteFile(fileName);
-            } finally {
-                writeLock.unlock();
-            }
-        }
+
+//        for (String fileName : files) {
+//            writeLock.lock();
+//            try {
+//                localDirectory.deleteFile(fileName);
+//            } finally {
+//                writeLock.unlock();
+//            }
+//        }
     }
 
     private String[] getRemoteFiles() {

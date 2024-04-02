@@ -534,8 +534,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                  * Composite Directory currently uses FSDirectory's getDirectory() method to fetch and use the Path for operating on FileCache
                  * TODO : Refactor FileCache to have key in form of String instead of Path. Once that is done we can remove this assertion
                  */
-                assert directoryFactory instanceof FsDirectoryFactory
-                    : "For Composite Directory, local directory must be of type FSDirectory";
+                logger.info("ankitkala: {}", directoryFactory);
+//                assert directoryFactory instanceof FsDirectoryFactory
+//                    : "For Composite Directory, local directory must be of type FSDirectory";
                 Directory localDirectory = directoryFactory.newDirectory(this.indexSettings, path);
                 directory = new CompositeDirectory(
                     (FSDirectory) localDirectory,

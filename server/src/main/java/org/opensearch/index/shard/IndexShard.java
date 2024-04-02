@@ -1654,6 +1654,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void finalizeReplication(SegmentInfos infos) throws IOException {
+        logger.info("ankitkala: finalize replication");
         if (getReplicationEngine().isPresent()) {
             getReplicationEngine().get().updateSegments(infos);
         }
@@ -4988,6 +4989,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, final Runnable onFileSync) throws IOException {
         boolean syncSegmentSuccess = false;
+        // Warm index uses a composite directory so directory will show the remote files as well.
+        // We shouldn't be overriding any files for this case.
+        boolean shouldOverrideLocalFiles = overrideLocal && indexSettings.isWarmIndex() == false;
+        if (indexSettings.isWarmIndex()) {
+            logger.info("ankitkala: warm sync segments");
+        }
         long startTimeMs = System.currentTimeMillis();
         assert indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
         logger.trace("Downloading segments from remote segment store");
@@ -5010,7 +5017,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
                 for (String file : uploadedSegments.keySet()) {
                     long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
-                    if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
+                    if (shouldOverrideLocalFiles || localDirectoryContains(storeDirectory, file, checksum) == false) {
                         recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
                     } else {
                         recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
@@ -5019,7 +5026,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } else {
                 storeDirectory = store.directory();
             }
-            copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, overrideLocal, onFileSync);
+            // Do not copy the files as these are fetched on-demand basis
+            if(indexSettings.isWarmIndex() == false) {
+                copySegmentFiles(storeDirectory, remoteDirectory, null, uploadedSegments, shouldOverrideLocalFiles, onFileSync);
+            }
 
             if (remoteSegmentMetadata != null) {
                 final SegmentInfos infosSnapshot = store.buildSegmentInfos(
@@ -5027,15 +5037,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     remoteSegmentMetadata.getGeneration()
                 );
                 long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
-                // Extra segments will be wiped on engine open.
-                for (String file : List.of(store.directory().listAll())) {
-                    if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                        store.deleteQuiet(file);
+                if(indexSettings.isWarmIndex() == false) {
+                    // delete any other commits, we want to start the engine only from a new commit made with the downloaded infos bytes.
+                    // Extra segments will be wiped on engine open.
+                    for (String file : List.of(store.directory().listAll())) {
+                        if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                            store.deleteQuiet(file);
+                        }
                     }
+                    assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
+                        : "There should not be any segments file in the dir";
                 }
-                assert Arrays.stream(store.directory().listAll()).filter(f -> f.startsWith(IndexFileNames.SEGMENTS)).findAny().isEmpty()
-                    : "There should not be any segments file in the dir";
                 store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
             }
             syncSegmentSuccess = true;

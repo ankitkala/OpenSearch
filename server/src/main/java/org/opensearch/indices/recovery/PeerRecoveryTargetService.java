@@ -232,6 +232,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         final StartRecoveryRequest startRequest;
         final ReplicationTimer timer;
         try (ReplicationRef<RecoveryTarget> recoveryRef = onGoingRecoveries.get(recoveryId)) {
+            logger.info("ankitkala: starting peer recovery");
             if (recoveryRef == null) {
                 logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
                 return;
@@ -252,7 +253,9 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         // plan to revamp this flow so that node-node segment copy will not happen.
                         // GitHub Issue to track the revamp: https://github.com/opensearch-project/OpenSearch/issues/11331
                         try {
+                            logger.info("ankitkala: triggering sync segments");
                             indexShard.syncSegmentsFromRemoteSegmentStore(false, recoveryTarget::setLastAccessTime);
+                            logger.info("ankitkala: triggering sync segments done");
                         } catch (Exception e) {
                             logger.error(
                                 "Exception while downloading segment files from remote store, will continue with peer to peer segment copy",
@@ -267,6 +270,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
+                    logger.info("ankitkala: start recovery request");
                     startRequest = getStartRecoveryRequest(
                         logger,
                         clusterService.localNode(),
@@ -276,6 +280,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     );
                     requestToSend = startRequest;
                     actionName = PeerRecoverySourceService.Actions.START_RECOVERY;
+                    logger.info("ankitkala: start recovery request done");
                 } catch (final Exception e) {
                     // this will be logged as warning later on...
                     logger.debug("unexpected error while preparing shard for peer recovery, failing recovery", e);
@@ -294,6 +299,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 logger.debug("{} reestablishing recovery from {}", startRequest.shardId(), startRequest.sourceNode());
             }
         }
+        logger.info("ankitkala: sending request to the source node");
         transportService.sendRequest(
             startRequest.sourceNode(),
             actionName,

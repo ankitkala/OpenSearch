@@ -539,7 +539,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         boolean isReady = indexShard.isStartedPrimary() || isLocalOrSnapshotRecovery() || indexShard.shouldSeedRemoteStore();
 
         if (isReady == false) {
-            StringBuilder sb = new StringBuilder("Skipped syncing segments with");
+            StringBuilder sb = new StringBuilder("MAX_REPLICATION_BACKPRESSURE_TIME_SETTING");
             if (indexShard.getReplicationTracker() != null) {
                 sb.append(" primaryMode=").append(indexShard.getReplicationTracker().isPrimaryMode());
             }

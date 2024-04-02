@@ -27,6 +27,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -63,6 +64,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         ActionListener<CheckpointInfoResponse> listener
     ) {
         Map<String, StoreFileMetadata> metadataMap;
+        logger.info("ankitkala: get checkpoint metadata");
         // TODO: Need to figure out a way to pass this information for segment metadata via remote store.
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
             final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
@@ -74,6 +76,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 return;
             }
             assert mdFile != null : "Remote metadata file can't be null if shard is active " + indexShard.state();
+            logger.info("ankitkala: all files in metadata: {}", mdFile.getMetadata().keySet());
             metadataMap = mdFile.getMetadata()
                 .entrySet()
                 .stream()
@@ -114,11 +117,16 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             if (remoteMetadataExists()) {
                 final Directory storeDirectory = indexShard.store().directory();
                 final Collection<String> directoryFiles = List.of(storeDirectory.listAll());
-                final List<String> toDownloadSegmentNames = new ArrayList<>();
+                List<String> toDownloadSegmentNames = new ArrayList<>();
                 for (StoreFileMetadata fileMetadata : filesToFetch) {
                     String file = fileMetadata.name();
-                    assert directoryFiles.contains(file) == false : "Local store already contains the file " + file;
+                    assert directoryFiles.contains(file) == false || indexShard.indexSettings().isWarmIndex() : "Local store already contains the file " + file;
                     toDownloadSegmentNames.add(file);
+                }
+                logger.info("ankitkala: toDownloadSegmentNames is {}", toDownloadSegmentNames);
+                if(indexShard.indexSettings().isWarmIndex()) {
+                    logger.info("Skipping download for warm index");
+                    listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
                 }
                 indexShard.getFileDownloader()
                     .downloadAsync(

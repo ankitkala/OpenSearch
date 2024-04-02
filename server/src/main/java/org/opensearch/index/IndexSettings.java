@@ -1250,6 +1250,9 @@ public final class IndexSettings {
         return isRemoteStoreEnabled;
     }
 
+    public boolean isWarmIndex() {
+        return isStoreLocalityPartial;
+    }
     public boolean isRemoteNode() {
         return RemoteStoreNodeAttribute.isRemoteDataAttributePresent(this.getNodeSettings());
     }

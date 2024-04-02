@@ -162,6 +162,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
      * @param listener {@link ActionListener} listener.
      */
     public void startReplication(ActionListener<Void> listener) {
+        logger.info("ankitkala: startReplication event");
         cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
             throw new CancellableThreads.ExecutionCancelledException("replication was canceled reason [" + reason + "]");
         });
@@ -198,29 +199,40 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private List<StoreFileMetadata> getFiles(CheckpointInfoResponse checkpointInfo) throws IOException {
         cancellableThreads.checkForCancel();
+        logger.info("ankitkala: getFiles");
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
+        logger.info("ankitkala: all files in checkpoint: {}", checkpointInfo.getMetadataMap().keySet());
+        logger.info("ankitkala: all files in metadata: {}", indexShard.getSegmentInfosSnapshot().get().files(true));
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
-        // local files
-        final Set<String> localFiles = Set.of(indexShard.store().directory().listAll());
-        // set of local files that can be reused
-        final Set<String> reuseFiles = diff.missing.stream()
-            .filter(storeFileMetadata -> localFiles.contains(storeFileMetadata.name()))
-            .filter(this::validateLocalChecksum)
-            .map(StoreFileMetadata::name)
-            .collect(Collectors.toSet());
+        final List<StoreFileMetadata> missingFiles;
+        // Skip reuse logic for warm indices
+        if (indexShard.indexSettings().isWarmIndex() == true) {
+            missingFiles = diff.missing;
+            logger.info("ankitkala: skipped files reuse");
+        } else {
+            // local files
+            final Set<String> localFiles = Set.of(indexShard.store().directory().listAll());
+            logger.info("ankitkala: getFiles {}", localFiles);
+            // set of local files that can be reused
+            final Set<String> reuseFiles = diff.missing.stream()
+                .filter(storeFileMetadata -> localFiles.contains(storeFileMetadata.name()))
+                .filter(this::validateLocalChecksum)
+                .map(StoreFileMetadata::name)
+                .collect(Collectors.toSet());
 
-        final List<StoreFileMetadata> missingFiles = diff.missing.stream()
-            .filter(md -> reuseFiles.contains(md.name()) == false)
-            .collect(Collectors.toList());
+            missingFiles = diff.missing.stream()
+                .filter(md -> reuseFiles.contains(md.name()) == false)
+                .collect(Collectors.toList());
 
-        logger.trace(
-            () -> new ParameterizedMessage(
-                "Replication diff for checkpoint {} {} {}",
-                checkpointInfo.getCheckpoint(),
-                missingFiles,
-                diff.different
-            )
-        );
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Replication diff for checkpoint {} {} {}",
+                    checkpointInfo.getCheckpoint(),
+                    missingFiles,
+                    diff.different
+                )
+            );
+        }
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an

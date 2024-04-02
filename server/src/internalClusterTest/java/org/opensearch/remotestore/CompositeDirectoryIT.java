@@ -8,17 +8,20 @@
 
 package org.opensearch.remotestore;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.opensearch.action.admin.indices.get.GetIndexRequest;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.CompositeDirectory;
+import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 
@@ -28,15 +31,25 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class CompositeDirectoryIT extends RemoteStoreBaseIntegTestCase {
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.WRITEABLE_REMOTE_INDEX, "true").build();
+    }
+
     public void testCompositeDirectory() throws Exception {
+        int totalDocs = 0;
         Settings settings = Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.WRITEABLE_REMOTE_INDEX, "true")
+            //.put(super.featureFlagSettings())
+            //.put(FeatureFlags.WRITEABLE_REMOTE_INDEX, "true")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexModule.INDEX_STORE_LOCALITY_SETTING.getKey(), "partial")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "fs")
             .build();
+        logger.info("ankitkala: settings {}", settings);
+        logger.info("ankitkala: Creating index");
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
         GetIndexResponse getIndexResponse = client().admin()
             .indices()
@@ -65,5 +78,28 @@ public class CompositeDirectoryIT extends RemoteStoreBaseIntegTestCase {
         ensureGreen("test-idx-1");
         indexData(10, false, "test-idx-1");
         ensureGreen("test-idx-1");
+
+        settings = Settings.builder()
+            .put("logger.org.opensearch.indices.recovery", "DEBUG")
+            .put("logger.org.opensearch.index.store.CompositeDirectory", "TRACE")
+            .build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+        // Add Replicas.
+        logger.info("ankitkala: Adding replica now");
+        settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        assertAcked(client().admin().indices().prepareUpdateSettings("test-idx-1").setSettings(settings).get());
+        logger.info("ankitkala: Adding replica Done");
+        //Thread.sleep(10000);
+
+        ensureGreen(TimeValue.timeValueSeconds(30), "test-idx-1");
+//
+        indexData(10, false, "test-idx-1");
+        logger.info("ankitkala: replica green");
+        //internalCluster().getDataNodeNames().stream().forEach();
+        settings = Settings.builder()
+            .put("logger.org.opensearch.indices.recovery", (String) null)
+            .put("logger.org.opensearch.index.store.CompositeDirectory", (String) null)
+            .build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
     }
 }

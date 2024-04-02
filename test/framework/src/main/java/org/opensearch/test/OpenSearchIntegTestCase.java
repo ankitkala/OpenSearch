@@ -910,11 +910,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 .map(NodeHotThreads::getHotThreads)
                 .collect(Collectors.joining("\n"));
             logger.info(
-                "{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
+                "{} timed out, cluster state:\n{}\npending tasks:\n{}\n",
                 method,
                 client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get(),
-                hotThreads
+                client().admin().cluster().preparePendingClusterTasks().get()
             );
             fail("timed out waiting for " + color + " state");
         }
