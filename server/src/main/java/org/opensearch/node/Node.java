@@ -829,7 +829,8 @@ public class Node implements Closeable {
                 remoteStoreStatsTrackerFactory,
                 recoverySettings,
                 cacheService,
-                remoteStoreSettings
+                remoteStoreSettings,
+                fileCache
             );
 
             final IngestService ingestService = new IngestService(

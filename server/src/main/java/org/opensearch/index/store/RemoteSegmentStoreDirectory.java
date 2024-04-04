@@ -18,14 +18,12 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.PublicApi;
-import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
@@ -43,10 +41,14 @@ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.io.BufferedOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -73,7 +75,7 @@ import java.util.stream.Collectors;
  * @opensearch.api
  */
 @PublicApi(since = "2.3.0")
-public final class RemoteSegmentStoreDirectory extends FilterDirectory implements RemoteStoreCommitLevelLockManager {
+public final class RemoteSegmentStoreDirectory extends BaseRemoteSegmentStoreDirectory implements RemoteStoreCommitLevelLockManager {
 
     /**
      * Each segment file is uploaded with unique suffix.
@@ -135,10 +137,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         this.threadPool = threadPool;
         this.logger = Loggers.getLogger(getClass(), shardId);
         init();
-    }
-
-    public BlobContainer getDataDirectoryBlobContainer() {
-        return remoteDataDirectory.getBlobContainer();
     }
 
     /**
@@ -219,6 +217,22 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         try (InputStream inputStream = remoteMetadataDirectory.getBlobStream(metadataFilename)) {
             byte[] metadataBytes = inputStream.readAllBytes();
             return metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
+        }
+    }
+
+    @Override
+    public void downloadFile(String fileName, long pos, long length, Path filePath) throws IOException {
+        OutputStream fileOutputStream = null, localFileOutputStream = null;
+        InputStream inputStream = null;
+        try {
+            fileOutputStream = Files.newOutputStream(filePath);
+            localFileOutputStream = new BufferedOutputStream(fileOutputStream);
+            inputStream = remoteDataDirectory.blobContainer.readBlob(getExistingRemoteFilename(fileName), pos, length);
+            inputStream.transferTo(localFileOutputStream);
+        } finally {
+            localFileOutputStream.close();
+            fileOutputStream.close();
+            inputStream.close();
         }
     }
 
@@ -703,7 +717,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
     }
 
-    public String getExistingRemoteFilename(String localFilename) {
+    private String getExistingRemoteFilename(String localFilename) {
         if (segmentsUploadedToRemoteStore.containsKey(localFilename)) {
             return segmentsUploadedToRemoteStore.get(localFilename).uploadedFilename;
         } else {

@@ -6,13 +6,18 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.store.remote.utils.filetracker;
+package org.opensearch.index.store.remote.utils;
 
 public enum FileType {
     BLOCK,
     NON_BLOCK;
 
-    public boolean isBlockFile(FileType fileType) {
+    public static boolean isBlockFile(FileType fileType) {
         return fileType.equals(FileType.BLOCK);
+    }
+
+    public static boolean isBlockFile(String fileName) {
+        if (fileName.contains("_block_")) return true;
+        return false;
     }
 }
